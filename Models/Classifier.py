@@ -3,15 +3,13 @@ import torch.nn as nn
 
 import Common
 
-class ESPERNetEncoder(nn.Module):
+class ESPERNetClassifier(nn.Module):
     def __init__(self,
                  input_dim:int=291, # pitch (1) + voiced (33) + unvoiced (257)
                  pitch_embed_dim:int=8,
                  pos_embed_dim:int=8,
                  max_ctx_size:int=1024,
                  model_dim:int=512,
-                 voice_dim:int=64,
-                 phoneme_dim:int=5
                  ):
         super().__init__()
         self.input_dim = input_dim
@@ -19,14 +17,10 @@ class ESPERNetEncoder(nn.Module):
         self.pos_embed_dim = pos_embed_dim
         self.max_ctx_size = max_ctx_size
         self.model_dim = model_dim
-        self.voice_dim = voice_dim
-        self.phoneme_dim = phoneme_dim
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_dim))
         self.pre_projector = nn.Linear(input_dim + pitch_embed_dim + pos_embed_dim - 1, model_dim)
-        self.voice_encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=6)
-        self.phoneme_encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=6)
-        self.post_projector_voice = nn.Linear(model_dim, voice_dim)
-        self.post_projector_phoneme = nn.Linear(model_dim, phoneme_dim)
+        self.main_network = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=6)
+        self.post_projector = nn.Linear(model_dim, 1)
 
     def forward(self, x:torch.Tensor):
         assert x.ndim == 3, f"Input must be 3D (batch, time, channels). Got {x.ndim}D instead."
@@ -42,16 +36,14 @@ class ESPERNetEncoder(nn.Module):
         pos_embedding = pos_embedding.to(x.device)
         features = torch.cat([features, pitch_embedding, pos_embedding], dim=2)
         features = self.pre_projector(features)
-        phoneme_features = self.phoneme_encoder(features)
         cls_token_expanded = self.cls_token.expand(batch_size, -1, -1)
         features = torch.cat([features, cls_token_expanded], dim=1)
-        voice_features = self.voice_encoder(features)[:, -1, :]
-        phoneme_features = self.post_projector_phoneme(phoneme_features)
-        voice_features = self.post_projector_voice(voice_features)
-        return voice_features, pitch, phoneme_features
+        features = self.main_network(features)[:, -1, :]
+        result = self.post_projector(features)
+        return result
 
 if __name__ == "__main__":
-    model = ESPERNetEncoder()
+    model = ESPERNetClassifier()
     print(model)
     # print the number of model parameters
     params = 0
@@ -61,5 +53,5 @@ if __name__ == "__main__":
     # test inference
     model.eval().cuda()
     data = torch.randn(1, 1024, 291).cuda()
-    u, v, w = model(data)
-    print(u.shape, v.shape, w.shape)
+    out = model(data)
+    print(out.shape)
