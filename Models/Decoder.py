@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-import Common
+import Models.Common as Common
 
 class ESPERNetDecoder(nn.Module):
     def __init__(self,

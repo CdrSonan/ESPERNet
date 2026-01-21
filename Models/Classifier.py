@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-import Common
+import Models.Common as Common
 
 class ESPERNetClassifier(nn.Module):
     def __init__(self,
