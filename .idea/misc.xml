@@ -7,5 +7,5 @@
   <component name="KubernetesApiProvider"><![CDATA[{
   "isMigrated": true
 }]]></component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.14 (ESPERNet)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.13 (ESPERNet)" project-jdk-type="Python SDK" />
 </project>
