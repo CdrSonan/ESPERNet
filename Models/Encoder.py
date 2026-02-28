@@ -27,10 +27,12 @@ class ESPERNetEncoder(nn.Module):
         self.post_projector_voice = nn.Linear(model_dim, voice_dim * 2) # Multiplier 2 due to VAE prediction (mean + variance)
         self.post_projector_phoneme = nn.Linear(model_dim, phoneme_dim * 2)
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, sampling_factor: torch.Tensor):
         assert x.ndim == 3, f"Input must be 3D (batch, time, channels). Got {x.ndim}D instead."
         assert x.shape[2] == self.input_dim, f"Expected input to have {self.input_dim} channels, got {x.shape[2]} instead."
         assert x.shape[1] <= self.max_ctx_size, f"Input sequence exceeds max context size. Expected <={self.max_ctx_size}, got {x.shape[1]} tokens."
+        assert sampling_factor.ndim == 1, f"Sampling factor must be 1D (batch). Got {sampling_factor.ndim}D instead."
+        assert sampling_factor.shape[0] == x.shape[0], f"Batch size mismatch between input and sampling factor: Got {x.shape[0]} and {sampling_factor.shape[0]}."
 
         batch_size = x.shape[0]
         seq_len = x.shape[1]
@@ -48,7 +50,11 @@ class ESPERNetEncoder(nn.Module):
         phoneme_features = features[:, :-1, :]
         voice_features = self.post_projector_voice(voice_features)
         phoneme_features = self.post_projector_phoneme(phoneme_features)
-        return voice_features, pitch, phoneme_features
+        voice_mean, voice_var = voice_features.chunk(2, dim=-1)
+        phoneme_mean, phoneme_var = phoneme_features.chunk(2, dim=-1)
+        voice_sampled = voice_mean + voice_var * torch.randn_like(voice_mean) * sampling_factor
+        phoneme_sampled = phoneme_mean + phoneme_var * torch.randn_like(phoneme_mean) * sampling_factor
+        return voice_sampled, pitch, phoneme_sampled
 
     @staticmethod
     def attn_mask(seq_len: int, win_size: int = 7, device: torch.device = torch.device("cpu")):
