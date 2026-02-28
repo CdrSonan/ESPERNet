@@ -21,7 +21,6 @@ classifier_input = (torch.randn(1, 1024, 291),)
 
 batch_size = torch.export.Dim("batch_size")
 seq_len = torch.export.Dim("seq_len")
-seq_len_2 = torch.export.Dim("seq_len_2")
 
 torch.onnx.export(
     encoder,
@@ -41,7 +40,7 @@ torch.onnx.export(
     decoder_path,
     input_names=["voice", "pitch", "phoneme"],
     output_names=["ESPERAudio"],
-    dynamic_shapes={"voice": {0: batch_size}, "pitch": {0: batch_size, 1: seq_len}, "phoneme": {0: batch_size, 1:seq_len_2}},
+    dynamic_shapes={"voice": {0: batch_size}, "pitch": {0: batch_size, 1: seq_len}, "phoneme": {0: batch_size, 1:seq_len}},
     export_params=True,
     do_constant_folding=False,
     external_data=False,

@@ -45,7 +45,7 @@ class ESPERNetEncoder(nn.Module):
         features = self.pre_projector(features)
         cls_token_expanded = self.cls_token.expand(batch_size, -1, -1)
         features = torch.cat([features, cls_token_expanded], dim=1)
-        features = self.main_encoder(features, mask=self.attn_mask(seq_len + 1, device=features.device))
+        features = self.main_encoder(features, mask=self.attn_mask(seq_len + 1, device=features.device), is_causal=False)
         voice_features = features[:, -1, :]
         phoneme_features = features[:, :-1, :]
         voice_features = self.post_projector_voice(voice_features)
