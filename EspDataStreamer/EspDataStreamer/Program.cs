@@ -78,7 +78,20 @@ void ServerLoop(string address = "tcp://localhost:5555")
 
         // Block until a precomputed sample is available (generated on background threads).
         var sample = sampleBuffer.GetNextSampleBlocking();
-        responder.SendFrame(sample);
+
+        const int chunkSize = 65536; // 64 KiB
+        var chunkCount = (sample.Length + chunkSize - 1) / chunkSize;
+        var sampleParts = new List<byte[]>(chunkCount);
+
+        for (var i = 0; i < sample.Length; i += chunkSize)
+        {
+            var currentChunkSize = Math.Min(chunkSize, sample.Length - i);
+            var chunk = new byte[currentChunkSize];
+            Array.Copy(sample, i, chunk, 0, currentChunkSize);
+            sampleParts.Add(chunk);
+        }
+
+        responder.SendMultipartBytes(sampleParts.ToArray());
     }
 }
 
