@@ -56,6 +56,12 @@ void ServerLoop(string address = "tcp://localhost:5555")
             continue;
         }
 
+        if (str == "length")
+        {
+            responder.SendFrame(files.Length.ToString());
+            continue;
+        }
+
         if (config == null)
         {
             responder.SendFrame("ERROR: received sample request before config");
