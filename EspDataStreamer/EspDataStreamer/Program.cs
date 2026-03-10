@@ -7,6 +7,7 @@ using NetMQ;
 using NetMQ.Sockets;
 
 var basePath = Environment.GetCommandLineArgs()[1];
+var bindAddress = Environment.GetCommandLineArgs()[2];
 var files = Directory.GetFiles(basePath, "*.mp3");
 if (files.Length == 0)
 {
@@ -21,7 +22,7 @@ const int maxBufferedSamples = 32;
 // Background pipeline state (recreated when config changes)
 SampleBuffer? sampleBuffer = null;
 
-ServerLoop();
+ServerLoop(bindAddress);
 return;
 
 void ServerLoop(string address = "tcp://localhost:5555")
@@ -32,6 +33,7 @@ void ServerLoop(string address = "tcp://localhost:5555")
     while (true)
     {
         var str = responder.ReceiveFrameString();
+        Console.WriteLine($"Received ZeroMQ Message: {str}");
 
         if (str == "exit")
         {
@@ -90,7 +92,7 @@ void ServerLoop(string address = "tcp://localhost:5555")
             Array.Copy(sample, i, chunk, 0, currentChunkSize);
             sampleParts.Add(chunk);
         }
-
+        Console.WriteLine($"Sending {sampleParts.Count} chunks");
         responder.SendMultipartBytes(sampleParts.ToArray());
     }
 }
@@ -157,6 +159,7 @@ internal sealed class SampleBuffer : IDisposable
 
     private static byte[] GetSampleFromFile(string filename, Config config)
     {
+        Console.WriteLine($"Reading {filename}");
         using var reader = new Mp3FileReader(filename);
         var audio = reader.ToSampleProvider();
         var sampleCount = (int)(reader.Length / (reader.WaveFormat.BitsPerSample / 8));
@@ -170,7 +173,7 @@ internal sealed class SampleBuffer : IDisposable
             Vector<float>.Build.DenseOfArray(waveform),
             sampleConfig,
             forwardConfig);
-
+        Console.WriteLine($"Read {filename} ({esperAudio.Length} frames)");
         return Serialization.Serialize(esperAudio);
     }
 
@@ -251,18 +254,18 @@ internal sealed class SampleBuffer : IDisposable
 
 public class Config
 {
-    public readonly int NVoiced = 10;
-    public readonly int NUnvoiced = 10;
-    public readonly int StepSize = 10;
-    public readonly float Smoothing = 0.5f;
-    public readonly float ExpectedPitch = 440;
+    public readonly int NVoiced;
+    public readonly int NUnvoiced;
+    public readonly int StepSize;
+    public readonly float? Smoothing;
+    public readonly float ExpectedPitch;
 
     public Config(string[] args)
     {
         NVoiced = int.Parse(args[1]);
         NUnvoiced = int.Parse(args[2]);
         StepSize = int.Parse(args[3]);
-        Smoothing = float.Parse(args[4]);
+        Smoothing = args[4] == "null" ? null : float.Parse(args[4]);
         ExpectedPitch = float.Parse(args[5]);
     }
 }
