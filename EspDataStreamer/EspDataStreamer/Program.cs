@@ -167,7 +167,7 @@ internal sealed class SampleBuffer : IDisposable
         audio.Read(waveform, 0, sampleCount);
 
         var sampleConfig = new EsperAudioConfig((ushort)config.NVoiced, (ushort)config.NUnvoiced, config.StepSize);
-        var forwardConfig = new EsperForwardConfig(config.Smoothing, Vector<float>.Build.Dense(1, config.ExpectedPitch));
+        var forwardConfig = new EsperForwardConfig(config.Smoothing, config.ExpectedPitch == null ? null : Vector<float>.Build.Dense(1, config.ExpectedPitch.Value));
 
         var esperAudio = EsperTransforms.Forward(
             Vector<float>.Build.DenseOfArray(waveform),
@@ -258,7 +258,7 @@ public class Config
     public readonly int NUnvoiced;
     public readonly int StepSize;
     public readonly float? Smoothing;
-    public readonly float ExpectedPitch;
+    public readonly float? ExpectedPitch;
 
     public Config(string[] args)
     {
@@ -266,6 +266,6 @@ public class Config
         NUnvoiced = int.Parse(args[2]);
         StepSize = int.Parse(args[3]);
         Smoothing = args[4] == "null" ? null : float.Parse(args[4]);
-        ExpectedPitch = float.Parse(args[5]);
+        ExpectedPitch = args[5] == "null" ? null : float.Parse(args[5]);
     }
 }
