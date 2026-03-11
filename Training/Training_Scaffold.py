@@ -39,7 +39,7 @@ class ESPERNetTrainingScaffold:
 
         score_real = self.classifier(batch)
         score_fake = self.classifier(decoded.detach())
-        gan_loss_classifier = torch.square(score_real - 1).mean() + torch.square(score_fake).mean()
+        gan_loss_classifier = torch.square(score_real).mean() + torch.square(score_fake - 1).mean()
         gan_loss_classifier.backward()
         self.classifier_optimizer.step()
 

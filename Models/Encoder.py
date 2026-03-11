@@ -8,7 +8,7 @@ class ESPERNetEncoder(nn.Module):
                  input_dim: int=291, # pitch (1) + voiced (33) + unvoiced (257)
                  pitch_embed_dim: int=8,
                  pos_embed_dim: int=8,
-                 max_ctx_size: int=1024,
+                 max_ctx_size: int=4096,
                  model_dim: int=512,
                  voice_dim: int=64,
                  phoneme_dim: int=5

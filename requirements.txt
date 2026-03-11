@@ -19,4 +19,5 @@ sympy==1.14.0
 torch==2.7.1+rocm6.3
 torchaudio==2.7.1+rocm6.3
 torchvision==0.22.1+rocm6.3
+tqdm==4.67.3
 typing_extensions==4.15.0

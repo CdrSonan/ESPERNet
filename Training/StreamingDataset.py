@@ -19,11 +19,11 @@ class EsperServerDataset(IterableDataset):
 
     def __init__(
             self,
-            n_voiced: int = 10,
-            n_unvoiced: int = 10,
-            step_size: int = 10,
-            smoothing: float = 0.5,
-            expected_pitch: float = 440.0,
+            n_voiced: int = 33,
+            n_unvoiced: int = 257,
+            step_size: int = 256,
+            smoothing: float|str = 0.1,
+            expected_pitch: float|str = "null",
             address: str = "tcp://localhost:5555",
             timeout_ms: int = 30_000,
             length_cache: bool = True,
@@ -34,8 +34,8 @@ class EsperServerDataset(IterableDataset):
         self.n_voiced = int(n_voiced)
         self.n_unvoiced = int(n_unvoiced)
         self.step_size = int(step_size)
-        self.smoothing = float(smoothing)
-        self.expected_pitch = float(expected_pitch)
+        self.smoothing = smoothing
+        self.expected_pitch = expected_pitch
 
         self.address = str(address)
         self.timeout_ms = int(timeout_ms)
@@ -54,7 +54,7 @@ class EsperServerDataset(IterableDataset):
         if self._sock is not None:
             return
 
-        self._ctx = zmq.Context.instance()
+        self._ctx = zmq.Context()
         self._sock = self._ctx.socket(zmq.REQ)
 
         # Avoid hanging forever.
@@ -67,12 +67,15 @@ class EsperServerDataset(IterableDataset):
     def _validate_and_parse(self, data: bytes) -> torch.Tensor:
         array = deserialize_esper_audio_uncompressed(
             data,
-            12,
+            11,
             self.n_voiced,
             self.n_unvoiced,
             self.step_size
         )
-        return torch.from_numpy(array)
+        tensor = torch.from_numpy(array)
+        if tensor.shape[0] > 4096:
+            tensor = tensor[:4096]
+        return torch.cat((tensor[:, :self.n_voiced + 1], tensor[:, 2 * self.n_voiced + 1:]), dim=1)
 
     def _send_and_recv(self, msg: str, is_meta: bool) -> Union[str, torch.Tensor]:
         """
@@ -128,12 +131,10 @@ class EsperServerDataset(IterableDataset):
     def __iter__(self):
         return self
 
-    def __next__(self) -> bytes:
+    def __next__(self) -> torch.Tensor:
         with self._lock:
             self._ensure_configured()
-            payload = self._send_and_recv("", is_meta=False)
-            assert isinstance(payload, (bytes, bytearray))
-            return bytes(payload)
+            return self._send_and_recv("", is_meta=False)
 
     def close(self) -> None:
         """
