@@ -188,10 +188,45 @@ internal sealed class SampleBuffer : IDisposable
                 var fileIndex = GetNextFileIndex();
                 var filename = _files[fileIndex];
 
-                // Expensive CPU work done off-thread here.
-                var sample = GetSampleFromFile(filename, _config);
+                try
+                {
+                    // Expensive CPU work done off-thread here.
+                    var sample = GetSampleFromFile(filename, _config);
 
-                await _channel.Writer.WriteAsync(sample, _cts.Token).ConfigureAwait(false);
+                    await _channel.Writer.WriteAsync(sample, _cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    await Console.Error.WriteLineAsync($"Failed to process '{filename}': {ex.Message}");
+
+                    try
+                    {
+                        var erroredDirectory = Path.Combine(Path.GetDirectoryName(filename) ?? ".", "errored");
+                        Directory.CreateDirectory(erroredDirectory);
+
+                        var destinationPath = Path.Combine(erroredDirectory, Path.GetFileName(filename));
+
+                        if (File.Exists(destinationPath))
+                        {
+                            var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filename);
+                            var extension = Path.GetExtension(filename);
+                            destinationPath = Path.Combine(
+                                erroredDirectory,
+                                $"{fileNameWithoutExtension}_{DateTime.UtcNow:yyyyMMddHHmmssfff}{extension}");
+                        }
+
+                        File.Move(filename, destinationPath);
+                        await Console.Error.WriteLineAsync($"Moved errored file to '{destinationPath}'.");
+                    }
+                    catch (Exception moveEx)
+                    {
+                        await Console.Error.WriteLineAsync($"Failed to move '{filename}' to errored folder: {moveEx.Message}");
+                    }
+                }
             }
         }
         catch (OperationCanceledException)
