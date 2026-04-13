@@ -1,20 +1,22 @@
 from pathlib import Path
 
-import onnx
 import torch
-from torch import nn
-#from onnxruntime.training import artifacts
 
 from Models.Classifier import ESPERNetClassifier
 from Models.Decoder import ESPERNetDecoder
 from Models.Encoder import ESPERNetEncoder
 
-encoder = ESPERNetEncoder().train()
-decoder = ESPERNetDecoder().train()
-classifier = ESPERNetClassifier().train()
-encoder_path = Path("../models/encoder.onnx")
-decoder_path = Path("../models/decoder.onnx")
-classifier_path = Path("../models/classifier.onnx")
+encoder = ESPERNetEncoder().eval()
+decoder = ESPERNetDecoder().eval()
+classifier = ESPERNetClassifier().eval()
+
+encoder.load_state_dict(torch.load("../models/ESPERNetEncoder.pth", map_location="cpu"))
+decoder.load_state_dict(torch.load("../models/ESPERNetDecoder.pth", map_location="cpu"))
+classifier.load_state_dict(torch.load("../models/ESPERNetClassifier.pth", map_location="cpu"))
+
+encoder_path = Path("../models/ESPERNetEncoder.onnx")
+decoder_path = Path("../models/ESPERNetDecoder.onnx")
+classifier_path = Path("../models/ESPERNetClassifier.onnx")
 encoder_input = (torch.randn(1, 1024, 291), torch.tensor([1.0,]))
 decoder_input = (torch.randn(1, 64), torch.randn(1, 1024), torch.randn(1, 1024, 5))
 classifier_input = (torch.randn(1, 1024, 291),)
