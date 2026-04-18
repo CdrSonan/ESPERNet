@@ -19,7 +19,7 @@ class ESPERNetClassifier(nn.Module):
         self.model_dim = model_dim
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_dim))
         self.pre_projector = nn.Linear(input_dim + pitch_embed_dim + pos_embed_dim - 1, model_dim)
-        self.main_network = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=6)
+        self.main_network = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=2)
         self.post_projector = nn.Linear(model_dim, 1)
 
     def forward(self, x:torch.Tensor):

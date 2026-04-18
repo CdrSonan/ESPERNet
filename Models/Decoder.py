@@ -23,7 +23,7 @@ class ESPERNetDecoder(nn.Module):
         self.phoneme_dim = phoneme_dim
         self.pre_projector_phoneme = nn.Linear(phoneme_dim + pitch_embed_dim + pos_embed_dim, model_dim)
         self.pre_projector_voice = nn.Linear(voice_dim, model_dim)
-        self.main_decoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=6)
+        self.main_decoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=2)
         self.post_projector = nn.Linear(model_dim, output_dim - 1)
 
     def forward(self, voice: torch.Tensor, pitch, phoneme):

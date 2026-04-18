@@ -23,7 +23,7 @@ class ESPERNetEncoder(nn.Module):
         self.phoneme_dim = phoneme_dim
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_dim))
         self.pre_projector = nn.Linear(input_dim + pitch_embed_dim + pos_embed_dim - 1, model_dim)
-        self.main_encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=6)
+        self.main_encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=2)
         self.post_projector_voice = nn.Linear(model_dim, voice_dim * 2) # Multiplier 2 due to VAE prediction (mean + variance)
         self.post_projector_phoneme = nn.Linear(model_dim, phoneme_dim * 2)
 
@@ -46,6 +46,7 @@ class ESPERNetEncoder(nn.Module):
         cls_token_expanded = self.cls_token.expand(batch_size, -1, -1)
         features = torch.cat([features, cls_token_expanded], dim=1)
         features = self.main_encoder(features, mask=self.attn_mask(seq_len + 1, device=features.device), is_causal=False)
+        #features = self.main_encoder(features)
         voice_features = features[:, -1, :]
         phoneme_features = features[:, :-1, :]
         voice_features = self.post_projector_voice(voice_features)
