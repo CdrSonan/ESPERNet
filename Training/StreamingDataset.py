@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import IterableDataset
 import zmq
 
-from Training.EspDeserializer import deserialize_esper_audio_uncompressed
+from Training.EspDeserializer import deserialize_esper_audio_compressed
 
 
 class EsperServerDataset(IterableDataset):
@@ -22,6 +22,8 @@ class EsperServerDataset(IterableDataset):
             n_voiced: int = 33,
             n_unvoiced: int = 257,
             step_size: int = 256,
+            temp_comp: int = 1,
+            spec_comp: int = 4,
             smoothing: float|str = 0.1,
             expected_pitch: float|str = "null",
             address: str = "tcp://localhost:5555",
@@ -34,6 +36,8 @@ class EsperServerDataset(IterableDataset):
         self.n_voiced = int(n_voiced)
         self.n_unvoiced = int(n_unvoiced)
         self.step_size = int(step_size)
+        self.temp_comp = int(temp_comp)
+        self.spec_comp = int(spec_comp)
         self.smoothing = smoothing
         self.expected_pitch = expected_pitch
 
@@ -65,12 +69,14 @@ class EsperServerDataset(IterableDataset):
         self._sock.connect(self.address)
 
     def _validate_and_parse(self, data: bytes) -> torch.Tensor:
-        array = deserialize_esper_audio_uncompressed(
+        array = deserialize_esper_audio_compressed(
             data,
             11,
             self.n_voiced,
             self.n_unvoiced,
-            self.step_size
+            self.step_size,
+            self.temp_comp,
+            self.spec_comp
         )
         tensor = torch.from_numpy(array)
         if tensor.shape[0] > 4096:
@@ -107,7 +113,7 @@ class EsperServerDataset(IterableDataset):
             return
         self._ensure_connected()
 
-        cfg = f"cfg {self.n_voiced} {self.n_unvoiced} {self.step_size} {self.smoothing} {self.expected_pitch}"
+        cfg = f"cfg {self.n_voiced} {self.n_unvoiced} {self.step_size} {self.temp_comp} {self.spec_comp} {self.smoothing} {self.expected_pitch}"
         reply = self._send_and_recv(cfg, is_meta=True)
         if reply != "config received":
             raise RuntimeError(f"Unexpected server reply to cfg: {reply!r}")

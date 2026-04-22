@@ -1,15 +1,17 @@
 import numpy as np
 
 
-def deserialize_esper_audio_uncompressed(
+def deserialize_esper_audio_compressed(
         data: bytes,
         expected_file_standard: int,
         expected_n_voiced: int,
         expected_n_unvoiced: int,
         expected_step_size: int,
+        expected_temp_comp: int,
+        expected_spec_comp: int,
 ) -> np.ndarray:
     """
-    Deserialize a *non-compressed* ESPERAudio byte blob produced by:
+    Deserialize a *compressed* ESPERAudio byte blob produced by:
       Serialize(EsperAudio audio) in LibESPER-V2.Serialization
 
     Layout (little-endian):
@@ -18,8 +20,11 @@ def deserialize_esper_audio_uncompressed(
       uint16  nVoiced
       uint16  nUnvoiced
       int32   stepSize
+      int32   temporalCompression
+      int32   spectralCompression
       int32   length
-      float32[length * frameSize]  row-major frame data
+      int32   compressedLength
+      float32[compressedLength * frameSize]  row-major frame data
 
     Returns
     -------
@@ -46,8 +51,8 @@ def deserialize_esper_audio_uncompressed(
     need(1)
     is_compressed = bool(np.frombuffer(mv[pos:pos + 1], dtype=np.uint8, count=1)[0])
     pos += 1
-    if is_compressed:
-        raise ValueError("Data is marked as compressed, but this function only supports non-compressed blobs.")
+    if not is_compressed:
+        raise ValueError("Data is marked as uncompressed, but this function only supports compressed blobs.")
 
     need(2)
     n_voiced = int(np.frombuffer(mv[pos:pos + 2], dtype="<u2", count=1)[0])
@@ -68,12 +73,24 @@ def deserialize_esper_audio_uncompressed(
         raise ValueError(f"Unexpected stepSize: got {step_size}, expected {expected_step_size}.")
 
     need(4)
+    temp_comp = int(np.frombuffer(mv[pos:pos + 4], dtype="<i4", count=1)[0])
+    pos += 4
+    if temp_comp != expected_temp_comp:
+        raise ValueError(f"Unexpected temporal compression: got {temp_comp}, expected {expected_temp_comp}.")
+
+    need(4)
+    spec_comp = int(np.frombuffer(mv[pos:pos + 4], dtype="<i4", count=1)[0])
+    pos += 4
+    if spec_comp != expected_spec_comp:
+        raise ValueError(f"Unexpected temporal compression: got {spec_comp}, expected {expected_spec_comp}.")
+
+    need(4)
     length = int(np.frombuffer(mv[pos:pos + 4], dtype="<i4", count=1)[0])
     pos += 4
     if length < 0:
         raise ValueError(f"Invalid length: {length}.")
 
-    expected_frame_size = 1 + 2 * n_voiced + n_unvoiced
+    expected_frame_size = 1 + n_voiced + int(n_unvoiced / spec_comp)
 
     floats_count = length * expected_frame_size
     data_bytes = floats_count * 4

@@ -1,6 +1,7 @@
 ﻿using System.Threading.Channels;
 using libESPER_V2.Core;
 using libESPER_V2.Transforms;
+using MathNet.Numerics.Interpolation;
 using MathNet.Numerics.LinearAlgebra;
 using NAudio.Wave;
 using NetMQ;
@@ -162,19 +163,26 @@ internal sealed class SampleBuffer : IDisposable
         Console.WriteLine($"Reading {filename}");
         using var reader = new Mp3FileReader(filename);
         var audio = reader.ToSampleProvider();
+        var sampleRate = reader.WaveFormat.SampleRate;
         var sampleCount = (int)(reader.Length / (reader.WaveFormat.BitsPerSample / 8));
         var waveform = new float[sampleCount];
         audio.Read(waveform, 0, sampleCount);
+        var x = Vector<double>.Build.Dense(sampleCount, i => (float)i / sampleRate).ToArray();
+        var y = Vector<double>.Build.Dense(sampleCount, i => waveform[i]).ToArray();
+        var interpolator = CubicSpline.InterpolatePchipSorted(x, y);
+        var resampFactor = 48000f / sampleRate;
+        var resampled = Vector<double>.Build.Dense((int)(sampleCount * resampFactor), i => interpolator.Interpolate(i / resampFactor));
 
         var sampleConfig = new EsperAudioConfig((ushort)config.NVoiced, (ushort)config.NUnvoiced, config.StepSize);
         var forwardConfig = new EsperForwardConfig(config.Smoothing, config.ExpectedPitch == null ? null : Vector<float>.Build.Dense(1, config.ExpectedPitch.Value));
 
         var esperAudio = EsperTransforms.Forward(
-            Vector<float>.Build.DenseOfArray(waveform),
+            Vector<float>.Build.Dense(resampled.Count, i => (float)resampled[i]),
             sampleConfig,
             forwardConfig);
-        Console.WriteLine($"Read {filename} ({esperAudio.Length} frames)");
-        return Serialization.Serialize(esperAudio);
+        var compressed = Compression.Compress(esperAudio, config.TempComp, config.SpecComp, 1e-5f);
+        Console.WriteLine($"Read {filename} ({compressed.Length} frames)");
+        return Serialization.Serialize(compressed);
     }
 
     private async Task WorkerLoop()
@@ -292,6 +300,8 @@ public class Config
     public readonly int NVoiced;
     public readonly int NUnvoiced;
     public readonly int StepSize;
+    public readonly int TempComp;
+    public readonly int SpecComp;
     public readonly float? Smoothing;
     public readonly float? ExpectedPitch;
 
@@ -300,7 +310,9 @@ public class Config
         NVoiced = int.Parse(args[1]);
         NUnvoiced = int.Parse(args[2]);
         StepSize = int.Parse(args[3]);
-        Smoothing = args[4] == "null" ? null : float.Parse(args[4]);
-        ExpectedPitch = args[5] == "null" ? null : float.Parse(args[5]);
+        TempComp = int.Parse(args[4]);
+        SpecComp = int.Parse(args[5]);
+        Smoothing = args[4] == "null" ? null : float.Parse(args[6]);
+        ExpectedPitch = args[5] == "null" ? null : float.Parse(args[7]);
     }
 }

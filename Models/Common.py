@@ -2,10 +2,9 @@
 import math
 import torch
 def pitch_embedding(pitch: torch.Tensor, lower_bound:float=40.0, upper_bound:float=2000.0, size:int=8):
-    lower_bound_log = math.log2(lower_bound)
-    upper_bound_log = math.log2(upper_bound)
-    pitch_log = torch.log2(pitch) # deliberately produces NaN for 0 values
-    coord = (pitch_log - lower_bound_log) / (upper_bound_log - lower_bound_log)
+    lower_bound_log = math.log(lower_bound)
+    upper_bound_log = math.log(upper_bound)
+    coord = (pitch - lower_bound_log) / (upper_bound_log - lower_bound_log)
     coord = coord.unsqueeze(-1)
     embedding = torch.cat([coord * (i + 1) for i in range(size)], dim=-1)
     embedding = torch.cos(embedding * math.pi)

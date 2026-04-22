@@ -5,7 +5,7 @@ import Models.Common as Common
 
 class ESPERNetEncoder(nn.Module):
     def __init__(self,
-                 input_dim: int=291, # pitch (1) + voiced (33) + unvoiced (257)
+                 input_dim:int=99, # pitch (1) + voiced (33) + unvoiced (257/4=65)
                  pitch_embed_dim: int=8,
                  pos_embed_dim: int=8,
                  max_ctx_size: int=4096,
@@ -45,8 +45,8 @@ class ESPERNetEncoder(nn.Module):
         features = self.pre_projector(features)
         cls_token_expanded = self.cls_token.expand(batch_size, -1, -1)
         features = torch.cat([features, cls_token_expanded], dim=1)
-        features = self.main_encoder(features, mask=self.attn_mask(seq_len + 1, device=features.device), is_causal=False)
-        #features = self.main_encoder(features)
+        #features = self.main_encoder(features, mask=self.attn_mask(seq_len + 1, device=features.device), is_causal=False)
+        features = self.main_encoder(features)
         voice_features = features[:, -1, :]
         phoneme_features = features[:, :-1, :]
         voice_features = self.post_projector_voice(voice_features)
