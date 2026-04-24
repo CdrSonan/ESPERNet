@@ -90,9 +90,16 @@ def deserialize_esper_audio_compressed(
     if length < 0:
         raise ValueError(f"Invalid length: {length}.")
 
+    need(4)
+    compressed_length = int(np.frombuffer(mv[pos:pos + 4], dtype="<i4", count=1)[0])
+    pos += 4
+    expected = int(float(length) / temp_comp)
+    if compressed_length != expected:
+        raise ValueError(f"Unexpected temporal compression: got {compressed_length}, expected {expected}.")
+
     expected_frame_size = 1 + n_voiced + int(n_unvoiced / spec_comp)
 
-    floats_count = length * expected_frame_size
+    floats_count = compressed_length * expected_frame_size
     data_bytes = floats_count * 4
     need(data_bytes)
 

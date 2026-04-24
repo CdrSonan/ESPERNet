@@ -71,7 +71,7 @@ class EsperServerDataset(IterableDataset):
     def _validate_and_parse(self, data: bytes) -> torch.Tensor:
         array = deserialize_esper_audio_compressed(
             data,
-            11,
+            12,
             self.n_voiced,
             self.n_unvoiced,
             self.step_size,
@@ -80,8 +80,9 @@ class EsperServerDataset(IterableDataset):
         )
         tensor = torch.from_numpy(array)
         if tensor.shape[0] > 4096:
+            print("WARNING: sample over max context size was truncated.")
             tensor = tensor[:4096]
-        return torch.cat((tensor[:, :self.n_voiced + 1], tensor[:, 2 * self.n_voiced + 1:]), dim=1)
+        return tensor
 
     def _send_and_recv(self, msg: str, is_meta: bool) -> Union[str, torch.Tensor]:
         """

@@ -5,7 +5,7 @@ import Models.Common as Common
 
 class ESPERNetEncoder(nn.Module):
     def __init__(self,
-                 input_dim:int=99, # pitch (1) + voiced (33) + unvoiced (257/4=65)
+                 input_dim:int=98, # pitch (1) + voiced (33) + unvoiced (257/4=64)
                  pitch_embed_dim: int=8,
                  pos_embed_dim: int=8,
                  max_ctx_size: int=4096,
