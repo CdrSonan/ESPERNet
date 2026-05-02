@@ -167,11 +167,11 @@ internal sealed class SampleBuffer : IDisposable
         var sampleCount = (int)(reader.Length / (reader.WaveFormat.BitsPerSample / 8));
         var waveform = new float[sampleCount];
         audio.Read(waveform, 0, sampleCount);
-        var x = Vector<double>.Build.Dense(sampleCount, i => (float)i / sampleRate).ToArray();
+        var x = Vector<double>.Build.Dense(sampleCount, i => (double)i / sampleRate).ToArray();
         var y = Vector<double>.Build.Dense(sampleCount, i => waveform[i]).ToArray();
-        var interpolator = CubicSpline.InterpolatePchipSorted(x, y);
-        var resampFactor = 48000f / sampleRate;
-        var resampled = Vector<double>.Build.Dense((int)(sampleCount * resampFactor), i => interpolator.Interpolate(i / resampFactor));
+        var interpolator = CubicSpline.InterpolatePchip(x, y);
+        var resampFactor = 48000d / sampleRate;
+        var resampled = Vector<double>.Build.Dense((int)(sampleCount * resampFactor), i => interpolator.Interpolate(i / 48000d));
 
         var sampleConfig = new EsperAudioConfig((ushort)config.NVoiced, (ushort)config.NUnvoiced, config.StepSize);
         var forwardConfig = new EsperForwardConfig(config.Smoothing, config.ExpectedPitch == null ? null : Vector<float>.Build.Dense(1, config.ExpectedPitch.Value));
@@ -312,7 +312,7 @@ public class Config
         StepSize = int.Parse(args[3]);
         TempComp = int.Parse(args[4]);
         SpecComp = int.Parse(args[5]);
-        Smoothing = args[4] == "null" ? null : float.Parse(args[6]);
-        ExpectedPitch = args[5] == "null" ? null : float.Parse(args[7]);
+        Smoothing = args[6] == "null" ? null : float.Parse(args[6]);
+        ExpectedPitch = args[7] == "null" ? null : float.Parse(args[7]);
     }
 }
