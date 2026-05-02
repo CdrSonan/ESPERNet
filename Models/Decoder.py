@@ -21,8 +21,7 @@ class ESPERNetDecoder(nn.Module):
         self.model_dim = model_dim
         self.voice_dim = voice_dim
         self.phoneme_dim = phoneme_dim
-        self.pre_projector_phoneme = nn.Linear(phoneme_dim + pitch_embed_dim + pos_embed_dim, model_dim)
-        self.pre_projector_voice = nn.Linear(voice_dim, model_dim)
+        self.pre_projector = nn.Linear(phoneme_dim + pitch_embed_dim + pos_embed_dim + voice_dim, model_dim)
         self.main_decoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=2)
         self.post_projector = nn.Linear(model_dim, output_dim - 1)
 
@@ -44,11 +43,10 @@ class ESPERNetDecoder(nn.Module):
         pitch_embedding = Common.pitch_embedding(pitch, size=self.pitch_embed_dim)
         pos_embedding = Common.position_embedding(batch_size, seq_len, self.max_ctx_size, self.pos_embed_dim)
         pos_embedding = pos_embedding.to(phoneme.device)
-        features_phoneme = torch.cat([phoneme, pitch_embedding, pos_embedding], dim=2)
-        features_phoneme = self.pre_projector_phoneme(features_phoneme)
-        features_voice = self.pre_projector_voice(voice)[:, None, :]
-        features = torch.cat([features_phoneme, features_voice], dim=1)
-        features = self.main_decoder(features)[:, :-1, :]
+        voice = voice.repeat(1, seq_len, 1)
+        features = torch.cat([phoneme, pitch_embedding, pos_embedding, voice], dim=2)
+        features = self.pre_projector(features)
+        features = self.main_decoder(features)
         output = self.post_projector(features)
         output = torch.cat([pitch[..., None], output], dim=2)
         return output

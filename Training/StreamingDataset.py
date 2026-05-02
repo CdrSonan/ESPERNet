@@ -78,7 +78,7 @@ class EsperServerDataset(IterableDataset):
             self.temp_comp,
             self.spec_comp
         )
-        tensor = torch.from_numpy(array)
+        tensor = torch.tensor(array)
         if tensor.shape[0] > 4096:
             print("WARNING: sample over max context size was truncated.")
             tensor = tensor[:4096]
