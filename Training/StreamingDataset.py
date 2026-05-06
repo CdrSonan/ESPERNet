@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import IterableDataset
 import zmq
 
-from Training.EspDeserializer import deserialize_esper_audio_compressed
+from Training.EspDeserializer import deserialize_esper_audio_compressed_many
 
 
 class EsperServerDataset(IterableDataset):
@@ -12,9 +12,10 @@ class EsperServerDataset(IterableDataset):
     Torch Dataset that fetches precomputed training samples from the C# ZeroMQ server.
 
     Protocol (REQ/REP):
-      - Must send:  "cfg <NVoiced> <NUnvoiced> <StepSize> <Smoothing> <ExpectedPitch>" once
+      - Must send:  "cfg <NVoiced> <NUnvoiced> <StepSize> <TempComp> <SpecComp> <Smoothing> <ExpectedPitch> <NAugs>" once
       - Length:     send "length" -> server replies with files.Length as string
-      - Sample:     send any other string -> server replies with a single frame (bytes) sample
+      - Sample:     send any other string -> server replies with concatenated bytes for
+                    original + NAug augmentations
     """
 
     def __init__(
@@ -24,6 +25,7 @@ class EsperServerDataset(IterableDataset):
             step_size: int = 256,
             temp_comp: int = 1,
             spec_comp: int = 4,
+            n_augs: int = 0,
             smoothing: float|str = 0.1,
             expected_pitch: float|str = "null",
             address: str = "tcp://localhost:5555",
@@ -38,6 +40,9 @@ class EsperServerDataset(IterableDataset):
         self.step_size = int(step_size)
         self.temp_comp = int(temp_comp)
         self.spec_comp = int(spec_comp)
+        self.n_augs = int(n_augs)
+        if self.n_augs < 0:
+            raise ValueError("n_augs must be >= 0.")
         self.smoothing = smoothing
         self.expected_pitch = expected_pitch
 
@@ -69,7 +74,7 @@ class EsperServerDataset(IterableDataset):
         self._sock.connect(self.address)
 
     def _validate_and_parse(self, data: bytes) -> torch.Tensor:
-        array = deserialize_esper_audio_compressed(
+        arrays = deserialize_esper_audio_compressed_many(
             data,
             12,
             self.n_voiced,
@@ -78,11 +83,27 @@ class EsperServerDataset(IterableDataset):
             self.temp_comp,
             self.spec_comp
         )
-        tensor = torch.tensor(array)
-        if tensor.shape[0] > 4096:
+        expected_batch_size = self.n_augs + 1
+        if len(arrays) != expected_batch_size:
+            raise ValueError(
+                f"Unexpected number of serialized samples: got {len(arrays)}, expected {expected_batch_size}."
+            )
+
+        tensors = [torch.tensor(array) for array in arrays]
+        truncated = False
+        for i, tensor in enumerate(tensors):
+            if tensor.shape[0] > 4096:
+                tensors[i] = tensor[:4096]
+                truncated = True
+        if truncated:
             print("WARNING: sample over max context size was truncated.")
-            tensor = tensor[:4096]
-        return tensor
+
+        max_len = max(tensor.shape[0] for tensor in tensors)
+        feature_dim = tensors[0].shape[1]
+        batch = torch.zeros((expected_batch_size, max_len, feature_dim), dtype=tensors[0].dtype)
+        for i, tensor in enumerate(tensors):
+            batch[i, :tensor.shape[0], :] = tensor
+        return batch
 
     def _send_and_recv(self, msg: str, is_meta: bool) -> Union[str, torch.Tensor]:
         """
@@ -114,7 +135,10 @@ class EsperServerDataset(IterableDataset):
             return
         self._ensure_connected()
 
-        cfg = f"cfg {self.n_voiced} {self.n_unvoiced} {self.step_size} {self.temp_comp} {self.spec_comp} {self.smoothing} {self.expected_pitch}"
+        cfg = (
+            f"cfg {self.n_voiced} {self.n_unvoiced} {self.step_size} "
+            f"{self.temp_comp} {self.spec_comp} {self.smoothing} {self.expected_pitch} {self.n_augs}"
+        )
         reply = self._send_and_recv(cfg, is_meta=True)
         if reply != "config received":
             raise RuntimeError(f"Unexpected server reply to cfg: {reply!r}")

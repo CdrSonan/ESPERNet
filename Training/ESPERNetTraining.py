@@ -21,7 +21,7 @@ dataset = EsperServerDataset(address="tcp://192.168.1.116:5555")
 length = len(dataset)
 counter = 0
 for sample in tqdm(dataset):
-    batch = sample[None, ...].to(device)
+    batch = sample.to(device)
     vae_loss, gan_loss_decoder, gan_loss_classifier = scaffold.train_step(batch)
     counter += 1
     if counter % 10 == 0:

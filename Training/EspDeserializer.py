@@ -1,41 +1,17 @@
 import numpy as np
 
 
-def deserialize_esper_audio_compressed(
-        data: bytes,
+def _read_compressed_blob(
+        mv: memoryview,
+        start_pos: int,
         expected_file_standard: int,
         expected_n_voiced: int,
         expected_n_unvoiced: int,
         expected_step_size: int,
         expected_temp_comp: int,
         expected_spec_comp: int,
-) -> np.ndarray:
-    """
-    Deserialize a *compressed* ESPERAudio byte blob produced by:
-      Serialize(EsperAudio audio) in LibESPER-V2.Serialization
-
-    Layout (little-endian):
-      uint32  fileStandard
-      bool    isCompressed
-      uint16  nVoiced
-      uint16  nUnvoiced
-      int32   stepSize
-      int32   temporalCompression
-      int32   spectralCompression
-      int32   length
-      int32   compressedLength
-      float32[compressedLength * frameSize]  row-major frame data
-
-    Returns
-    -------
-    np.ndarray
-        Shape: (length, expected_frame_size), dtype float32 (little-endian -> native).
-    """
-    if not isinstance(data, (bytes, bytearray, memoryview)):
-        raise TypeError("blob must be bytes-like.")
-
-    mv = memoryview(data)
-    pos = 0
+) -> tuple[np.ndarray, int]:
+    pos = start_pos
 
     def need(n: int) -> None:
         nonlocal pos
@@ -98,15 +74,90 @@ def deserialize_esper_audio_compressed(
         raise ValueError(f"Unexpected temporal compression: got {compressed_length}, expected {expected}.")
 
     expected_frame_size = 1 + n_voiced + int(n_unvoiced / spec_comp)
-
     floats_count = compressed_length * expected_frame_size
     data_bytes = floats_count * 4
     need(data_bytes)
 
     frames = np.frombuffer(mv[pos:pos + data_bytes], dtype="<f4", count=floats_count)
     pos += data_bytes
+    return frames.reshape((length, expected_frame_size)).astype(np.float32, copy=False), pos
 
-    if pos != len(mv):
-        raise ValueError(f"Extra trailing bytes: {len(mv) - pos} bytes remain after reading frames.")
 
-    return frames.reshape((length, expected_frame_size)).astype(np.float32, copy=False)
+def deserialize_esper_audio_compressed(
+        data: bytes,
+        expected_file_standard: int,
+        expected_n_voiced: int,
+        expected_n_unvoiced: int,
+        expected_step_size: int,
+        expected_temp_comp: int,
+        expected_spec_comp: int,
+) -> np.ndarray:
+    """
+    Deserialize a *compressed* ESPERAudio byte blob produced by:
+      Serialize(EsperAudio audio) in LibESPER-V2.Serialization
+
+    Layout (little-endian):
+      uint32  fileStandard
+      bool    isCompressed
+      uint16  nVoiced
+      uint16  nUnvoiced
+      int32   stepSize
+      int32   temporalCompression
+      int32   spectralCompression
+      int32   length
+      int32   compressedLength
+      float32[compressedLength * frameSize]  row-major frame data
+
+    Returns
+    -------
+    np.ndarray
+        Shape: (length, expected_frame_size), dtype float32 (little-endian -> native).
+    """
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        raise TypeError("blob must be bytes-like.")
+
+    array, end_pos = _read_compressed_blob(
+        memoryview(data),
+        0,
+        expected_file_standard,
+        expected_n_voiced,
+        expected_n_unvoiced,
+        expected_step_size,
+        expected_temp_comp,
+        expected_spec_comp
+    )
+    if end_pos != len(data):
+        raise ValueError(f"Extra trailing bytes: {len(data) - end_pos} bytes remain after reading frames.")
+    return array
+
+
+def deserialize_esper_audio_compressed_many(
+        data: bytes,
+        expected_file_standard: int,
+        expected_n_voiced: int,
+        expected_n_unvoiced: int,
+        expected_step_size: int,
+        expected_temp_comp: int,
+        expected_spec_comp: int,
+) -> list[np.ndarray]:
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        raise TypeError("blob must be bytes-like.")
+
+    mv = memoryview(data)
+    arrays = []
+    pos = 0
+    while pos < len(mv):
+        array, pos = _read_compressed_blob(
+            mv,
+            pos,
+            expected_file_standard,
+            expected_n_voiced,
+            expected_n_unvoiced,
+            expected_step_size,
+            expected_temp_comp,
+            expected_spec_comp
+        )
+        arrays.append(array)
+    if not arrays:
+        raise ValueError("No compressed ESPER audio blobs found.")
+    return arrays

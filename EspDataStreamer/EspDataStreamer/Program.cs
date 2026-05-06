@@ -158,6 +158,14 @@ internal sealed class SampleBuffer : IDisposable
         return sample;
     }
 
+    private static CompressedEsperAudio CreateAugmentedCompressedAudioPlaceholder(
+        EsperAudio sourceAudio,
+        Config config)
+    {
+        // TODO: replace placeholder with real augmentation pipeline.
+        return Compression.Compress(sourceAudio, config.TempComp, config.SpecComp, 1e-5f);
+    }
+
     private static byte[] GetSampleFromFile(string filename, Config config)
     {
         Console.WriteLine($"Reading {filename}");
@@ -180,9 +188,32 @@ internal sealed class SampleBuffer : IDisposable
             Vector<float>.Build.Dense(resampled.Count, i => (float)resampled[i]),
             sampleConfig,
             forwardConfig);
-        var compressed = Compression.Compress(esperAudio, config.TempComp, config.SpecComp, 1e-5f);
-        Console.WriteLine($"Read {filename} ({compressed.Length} frames)");
-        return Serialization.Serialize(compressed);
+        var compressedSamples = new CompressedEsperAudio[config.NAugs + 1];
+        compressedSamples[0] = Compression.Compress(esperAudio, config.TempComp, config.SpecComp, 1e-5f);
+        for (var i = 1; i < compressedSamples.Length; i++)
+        {
+            compressedSamples[i] = CreateAugmentedCompressedAudioPlaceholder(esperAudio, config);
+        }
+
+        var serializedSamples = new byte[compressedSamples.Length][];
+        var totalLength = 0;
+        for (var i = 0; i < compressedSamples.Length; i++)
+        {
+            serializedSamples[i] = Serialization.Serialize(compressedSamples[i]);
+            totalLength += serializedSamples[i].Length;
+        }
+
+        var payload = new byte[totalLength];
+        var offset = 0;
+        foreach (var serializedSample in serializedSamples)
+        {
+            Buffer.BlockCopy(serializedSample, 0, payload, offset, serializedSample.Length);
+            offset += serializedSample.Length;
+        }
+
+        Console.WriteLine(
+            $"Read {filename} ({compressedSamples[0].Length} frames, {compressedSamples.Length} variants)");
+        return payload;
     }
 
     private async Task WorkerLoop()
@@ -304,6 +335,7 @@ public class Config
     public readonly int SpecComp;
     public readonly float? Smoothing;
     public readonly float? ExpectedPitch;
+    public readonly int NAugs;
 
     public Config(string[] args)
     {
@@ -314,5 +346,10 @@ public class Config
         SpecComp = int.Parse(args[5]);
         Smoothing = args[6] == "null" ? null : float.Parse(args[6]);
         ExpectedPitch = args[7] == "null" ? null : float.Parse(args[7]);
+        NAugs = int.Parse(args[8]);
+        if (NAugs < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(NAugs), "NAugs must be >= 0.");
+        }
     }
 }
