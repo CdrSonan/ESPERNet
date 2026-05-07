@@ -25,9 +25,9 @@ public static class Augmentation
         Effects.PitchShift(audio, targetPitch);
     }
 
-    private static void ApplyRandomFx(EsperAudio audio)
+    private static void ApplyFx(EsperAudio audio, (Action<EsperAudio, Vector<float>> effect, float minStrength, float maxStrength) fx)
     {
-        var (effect, minStrength, maxStrength) = Fx[Random.Shared.Next(Fx.Length)];
+        var (effect, minStrength, maxStrength) = fx;
         var strength = minStrength + (float)(Random.Shared.NextDouble() * (maxStrength - minStrength));
         var strengthVector = Vector<float>.Build.Dense(audio.Length, strength);
         effect(audio, strengthVector);
@@ -35,10 +35,27 @@ public static class Augmentation
 
     public static EsperAudio Augment(EsperAudio audio, uint nAugs)
     {
+        if (nAugs > Fx.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(nAugs), "nAugs must be <= " + Fx.Length);
+        }
         ApplyRandomPitchShift(audio);
+
+        var fxIndices = new int[Fx.Length];
+        for (var i = 0; i < Fx.Length; i++)
+        {
+            fxIndices[i] = i;
+        }
+
         for (var i = 0; i < nAugs; i++)
         {
-            ApplyRandomFx(audio);
+            var randomIndex = Random.Shared.Next(i, Fx.Length);
+            (fxIndices[i], fxIndices[randomIndex]) = (fxIndices[randomIndex], fxIndices[i]);
+        }
+
+        for (var i = 0; i < nAugs; i++)
+        {
+            ApplyFx(audio, Fx[fxIndices[i]]);
         }
         return audio;
     }

@@ -1,11 +1,14 @@
-﻿using System.Threading.Channels;
+using System.Threading.Channels;
 using libESPER_V2.Core;
+using libESPER_V2.Effects;
 using libESPER_V2.Transforms;
 using MathNet.Numerics.Interpolation;
 using MathNet.Numerics.LinearAlgebra;
 using NAudio.Wave;
 using NetMQ;
 using NetMQ.Sockets;
+using System.Reflection;
+using EspDataStreamer;
 
 var basePath = Environment.GetCommandLineArgs()[1];
 var bindAddress = Environment.GetCommandLineArgs()[2];
@@ -106,6 +109,25 @@ void ServerLoop(string address = "tcp://localhost:5555")
 /// </summary>
 internal sealed class SampleBuffer : IDisposable
 {
+    private static readonly MethodInfo[] EffectMethods = typeof(Effects)
+        .GetMethods(BindingFlags.Public | BindingFlags.Static)
+        .Where(method =>
+        {
+            if (method.ReturnType != typeof(void))
+            {
+                return false;
+            }
+
+            var parameters = method.GetParameters();
+            if (parameters.Length < 2 || parameters[0].ParameterType != typeof(EsperAudio))
+            {
+                return false;
+            }
+
+            return parameters.Skip(1).All(parameter => parameter.ParameterType == typeof(Vector<float>));
+        })
+        .ToArray();
+
     private readonly string[] _files;
     private readonly Config _config;
 
@@ -158,12 +180,10 @@ internal sealed class SampleBuffer : IDisposable
         return sample;
     }
 
-    private static CompressedEsperAudio CreateAugmentedCompressedAudioPlaceholder(
-        EsperAudio sourceAudio,
-        Config config)
+    private static EsperAudio CreateAugmentedAudio(EsperAudio sourceAudio)
     {
         // TODO: replace placeholder with real augmentation pipeline.
-        return Compression.Compress(sourceAudio, config.TempComp, config.SpecComp, 1e-5f);
+        return Augmentation.Augment(sourceAudio, 2);
     }
 
     private static byte[] GetSampleFromFile(string filename, Config config)
@@ -192,7 +212,8 @@ internal sealed class SampleBuffer : IDisposable
         compressedSamples[0] = Compression.Compress(esperAudio, config.TempComp, config.SpecComp, 1e-5f);
         for (var i = 1; i < compressedSamples.Length; i++)
         {
-            compressedSamples[i] = CreateAugmentedCompressedAudioPlaceholder(esperAudio, config);
+            var augmented = CreateAugmentedAudio(esperAudio);
+            compressedSamples[i] = Compression.Compress(augmented, config.TempComp, config.SpecComp, 1e-5f);
         }
 
         var serializedSamples = new byte[compressedSamples.Length][];
@@ -265,6 +286,7 @@ internal sealed class SampleBuffer : IDisposable
                     {
                         await Console.Error.WriteLineAsync($"Failed to move '{filename}' to errored folder: {moveEx.Message}");
                     }
+
                 }
             }
         }
