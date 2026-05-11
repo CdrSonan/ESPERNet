@@ -28,9 +28,11 @@ class ESPERNetTrainingScaffold:
         decoded = self.decoder(voice, pitch, phoneme)
         score_generator = self.classifier(decoded)
         vae_loss = self.vae_loss_fn(batch, decoded)
+        phoneme_ref, phoneme_aug = phoneme.split_with_sizes([1, len(phoneme) - 1], dim=0)
+        phoneme_con_loss = self.vae_loss_fn(phoneme_ref.expand(phoneme_aug.size), phoneme_aug)
         gan_loss_decoder = torch.abs(score_generator).mean()
 
-        (vae_loss + gan_loss_decoder).backward()
+        (vae_loss + phoneme_con_loss).backward()
         self.encoder_optimizer.step()
         self.decoder_optimizer.step()
         self.encoder_optimizer.zero_grad()
@@ -45,7 +47,7 @@ class ESPERNetTrainingScaffold:
 
         self.classifier_optimizer.zero_grad()
 
-        return vae_loss.item(), gan_loss_decoder.item(), gan_loss_classifier.item()
+        return vae_loss.item(), phoneme_con_loss.item(), gan_loss_decoder.item(), gan_loss_classifier.item()
 
 if __name__ == "__main__":
     # test training step

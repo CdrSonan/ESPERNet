@@ -7,14 +7,14 @@ namespace EspDataStreamer;
 public static class Augmentation
 {
     private static readonly (Action<EsperAudio, Vector<float>>, float, float)[] Fx = [
-    (Effects.Breathiness, -1, 0.8f),
-    (Effects.Brightness, -1, 1),
-    (Effects.Dynamics, -1, 1),
-    (Effects.FormantShift, -1, 1),
-    (Effects.Growl, 0, 1),
-    (Effects.Mouth, -1, 1),
-    (Effects.Roughness, -1, 1),
-    (Effects.Steadiness, -1, 1)
+        (Effects.Breathiness, -1, 0.8f),
+        (Effects.Brightness, -1, 1),
+        (Effects.Dynamics, -1, 1),
+        (Effects.FormantShift, -1, 1),
+        (Effects.Growl, 0, 1),
+        (Effects.Mouth, -1, 1),
+        (Effects.Roughness, -1, 1),
+        (Effects.Steadiness, -1, 1)
     ];
 
     private static void ApplyRandomPitchShift(EsperAudio audio)
@@ -39,6 +39,7 @@ public static class Augmentation
         {
             throw new ArgumentOutOfRangeException(nameof(nAugs), "nAugs must be <= " + Fx.Length);
         }
+
         ApplyRandomPitchShift(audio);
 
         var fxIndices = new int[Fx.Length];
