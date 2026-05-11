@@ -7,14 +7,14 @@ namespace EspDataStreamer;
 public static class Augmentation
 {
     private static readonly (Action<EsperAudio, Vector<float>>, float, float)[] Fx = [
-        (Effects.Breathiness, -1, 0.8f),
-        (Effects.Brightness, -1, 1),
-        (Effects.Dynamics, -1, 1),
-        (Effects.FormantShift, -1, 1),
-        (Effects.Growl, 0, 1),
-        (Effects.Mouth, -1, 1),
-        (Effects.Roughness, -1, 1),
-        (Effects.Steadiness, -1, 1)
+        (Effects.Breathiness, -0.5f, 0.8f),
+        //(Effects.Brightness, -0.5f, 0.5f),
+        (Effects.Dynamics, -0.5f, 0.5f),
+        (Effects.FormantShift, -0.25f, 0.25f),
+        //(Effects.Growl, 0, 0.5f),
+        //(Effects.Mouth, -0.5f, 0.5f),
+        (Effects.Roughness, -0.5f, 0.5f),
+        (Effects.Steadiness, -0.5f, 0.5f)
     ];
 
     private static void ApplyRandomPitchShift(EsperAudio audio)
