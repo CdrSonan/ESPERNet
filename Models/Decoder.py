@@ -43,7 +43,7 @@ class ESPERNetDecoder(nn.Module):
         pitch_embedding = Common.pitch_embedding(pitch, size=self.pitch_embed_dim)
         pos_embedding = Common.position_embedding(batch_size, seq_len, self.max_ctx_size, self.pos_embed_dim)
         pos_embedding = pos_embedding.to(phoneme.device)
-        voice = voice.repeat(1, seq_len, 1)
+        voice = voice.unsqueeze(1).repeat(1, seq_len, 1)
         features = torch.cat([phoneme, pitch_embedding, pos_embedding, voice], dim=2)
         features = self.pre_projector(features)
         features = self.main_decoder(features)

@@ -22,10 +22,10 @@ length = len(dataset)
 counter = 0
 for sample in tqdm(dataset):
     batch = sample.to(device)
-    vae_loss, gan_loss_decoder, gan_loss_classifier = scaffold.train_step(batch)
+    vae_loss, phoneme_con_loss, gan_loss_decoder, gan_loss_classifier = scaffold.train_step(batch)
     counter += 1
     if counter % 10 == 0:
-        print(vae_loss, gan_loss_decoder, gan_loss_classifier)
+        print(vae_loss, phoneme_con_loss, gan_loss_decoder, gan_loss_classifier)
     if counter % 1000 == 0:
         torch.save(encoder.state_dict(), f"./ESPERNetEncoder-{counter}.pth")
         torch.save(decoder.state_dict(), f"./ESPERNetDecoder-{counter}.pth")

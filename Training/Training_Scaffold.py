@@ -25,27 +25,33 @@ class ESPERNetTrainingScaffold:
 
     def train_step(self, batch: torch.Tensor):
         voice, pitch, phoneme = self.encoder(batch, torch.ones(batch.shape[0], device=batch.device))
-        decoded = self.decoder(voice, pitch, phoneme)
-        score_generator = self.classifier(decoded)
-        vae_loss = self.vae_loss_fn(batch, decoded)
+
         phoneme_ref, phoneme_aug = phoneme.split_with_sizes([1, len(phoneme) - 1], dim=0)
-        phoneme_con_loss = self.vae_loss_fn(phoneme_ref.expand(phoneme_aug.size), phoneme_aug)
-        gan_loss_decoder = torch.abs(score_generator).mean()
+        phoneme_con_loss = self.vae_loss_fn(phoneme_ref.expand(phoneme_aug.size()), phoneme_aug)
+
+        decoded = self.decoder(voice, pitch, phoneme_ref.expand(phoneme.size()))
+
+        vae_loss = self.vae_loss_fn(batch, decoded)
+        #score_generator = self.classifier(decoded)
+        #gan_loss_decoder = torch.abs(score_generator).mean()
 
         (vae_loss + phoneme_con_loss).backward()
         self.encoder_optimizer.step()
         self.decoder_optimizer.step()
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
-        self.classifier_optimizer.zero_grad()
+        #self.classifier_optimizer.zero_grad()
 
-        score_real = self.classifier(batch)
+        """score_real = self.classifier(batch)
         score_fake = self.classifier(decoded.detach())
         gan_loss_classifier = torch.square(score_real).mean() + torch.square(score_fake - 1).mean()
         gan_loss_classifier.backward()
         self.classifier_optimizer.step()
 
-        self.classifier_optimizer.zero_grad()
+        self.classifier_optimizer.zero_grad()"""
+
+        gan_loss_decoder = torch.tensor([0,])
+        gan_loss_classifier = torch.tensor([0,])
 
         return vae_loss.item(), phoneme_con_loss.item(), gan_loss_decoder.item(), gan_loss_classifier.item()
 

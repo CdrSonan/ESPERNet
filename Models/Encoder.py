@@ -53,8 +53,8 @@ class ESPERNetEncoder(nn.Module):
         phoneme_features = self.post_projector_phoneme(phoneme_features)
         voice_mean, voice_var = voice_features.chunk(2, dim=-1)
         phoneme_mean, phoneme_var = phoneme_features.chunk(2, dim=-1)
-        voice_sampled = voice_mean + voice_var * torch.randn_like(voice_mean) * sampling_factor
-        phoneme_sampled = phoneme_mean + phoneme_var * torch.randn_like(phoneme_mean) * sampling_factor
+        voice_sampled = voice_mean + voice_var * torch.randn_like(voice_mean) * sampling_factor[:, None]
+        phoneme_sampled = phoneme_mean + phoneme_var * torch.randn_like(phoneme_mean) * sampling_factor[:, None, None]
         return voice_sampled, pitch, phoneme_sampled
 
     @staticmethod

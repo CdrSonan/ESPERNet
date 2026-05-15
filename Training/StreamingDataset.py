@@ -25,7 +25,7 @@ class EsperServerDataset(IterableDataset):
             step_size: int = 256,
             temp_comp: int = 1,
             spec_comp: int = 4,
-            n_augs: int = 0,
+            n_augs: int = 4,
             smoothing: float|str = 0.1,
             expected_pitch: float|str = "null",
             address: str = "tcp://localhost:5555",
