@@ -11,7 +11,7 @@ class ESPERNetEncoder(nn.Module):
                  max_ctx_size: int=4096,
                  model_dim: int=512,
                  voice_dim: int=64,
-                 phoneme_dim: int=5
+                 phoneme_dim: int=3
                  ):
         super().__init__()
         self.input_dim = input_dim
