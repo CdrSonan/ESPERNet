@@ -8,18 +8,18 @@ from Models.Encoder import ESPERNetEncoder
 
 encoder = ESPERNetEncoder().eval()
 decoder = ESPERNetDecoder().eval()
-classifier = ESPERNetClassifier().eval()
+#classifier = ESPERNetClassifier().eval()
 
-encoder.load_state_dict(torch.load("./ESPERNetEncoder-10000.pth", map_location="cpu"))
-decoder.load_state_dict(torch.load("./ESPERNetDecoder-10000.pth", map_location="cpu"))
-classifier.load_state_dict(torch.load("./ESPERNetClassifier-10000.pth", map_location="cpu"))
+encoder.load_state_dict(torch.load("./ESPERNetEncoder-3000.pth", map_location="cpu"))
+decoder.load_state_dict(torch.load("./ESPERNetDecoder-3000.pth", map_location="cpu"))
+#classifier.load_state_dict(torch.load("./ESPERNetClassifier-14000.pth", map_location="cpu"))
 
-encoder_path = Path("./ESPERNetEncoder-10000.onnx")
-decoder_path = Path("./ESPERNetDecoder-10000.onnx")
-classifier_path = Path("./ESPERNetClassifier-10000.onnx")
+encoder_path = Path("./ESPERNetEncoder-3000.onnx")
+decoder_path = Path("./ESPERNetDecoder-3000.onnx")
+#classifier_path = Path("./ESPERNetClassifier-14000.onnx")
 encoder_input = (torch.randn(1, 1024, 98), torch.tensor([1.0,]))
-decoder_input = (torch.randn(1, 64), torch.randn(1, 1024), torch.randn(1, 1024, 5))
-classifier_input = (torch.randn(1, 1024, 98),)
+decoder_input = (torch.randn(1, 64), torch.randn(1, 1024), torch.randn(1, 1024, 3))
+#classifier_input = (torch.randn(1, 1024, 98),)
 
 batch_size = torch.export.Dim("batch_size")
 seq_len = torch.export.Dim("seq_len")
@@ -48,7 +48,7 @@ torch.onnx.export(
     external_data=False,
     opset_version=21
 )
-torch.onnx.export(
+"""torch.onnx.export(
     classifier,
     classifier_input,
     classifier_path,
@@ -59,4 +59,4 @@ torch.onnx.export(
     do_constant_folding=False,
     external_data=False,
     opset_version=21
-)
+)"""
