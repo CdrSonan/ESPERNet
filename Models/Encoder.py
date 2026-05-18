@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 import Models.Common as Common
 
@@ -27,7 +28,7 @@ class ESPERNetEncoder(nn.Module):
         self.post_projector_voice = nn.Linear(model_dim, voice_dim * 2) # Multiplier 2 due to VAE prediction (mean + variance)
         self.post_projector_phoneme = nn.Linear(model_dim, phoneme_dim * 2)
 
-    def forward(self, x: torch.Tensor, sampling_factor: torch.Tensor):
+    def forward(self, x: torch.Tensor, sampling_factor: torch.Tensor, return_stats: bool = False):
         assert x.ndim == 3, f"Input must be 3D (batch, time, channels). Got {x.ndim}D instead."
         assert x.shape[2] == self.input_dim, f"Expected input to have {self.input_dim} channels, got {x.shape[2]} instead."
         assert x.shape[1] <= self.max_ctx_size, f"Input sequence exceeds max context size. Expected <={self.max_ctx_size}, got {x.shape[1]} tokens."
@@ -51,10 +52,16 @@ class ESPERNetEncoder(nn.Module):
         phoneme_features = features[:, :-1, :]
         voice_features = self.post_projector_voice(voice_features)
         phoneme_features = self.post_projector_phoneme(phoneme_features)
-        voice_mean, voice_var = voice_features.chunk(2, dim=-1)
-        phoneme_mean, phoneme_var = phoneme_features.chunk(2, dim=-1)
-        voice_sampled = voice_mean + voice_var * torch.randn_like(voice_mean) * sampling_factor[:, None]
-        phoneme_sampled = phoneme_mean + phoneme_var * torch.randn_like(phoneme_mean) * sampling_factor[:, None, None]
+        voice_mean, voice_scale_raw = voice_features.chunk(2, dim=-1)
+        phoneme_mean, phoneme_scale_raw = phoneme_features.chunk(2, dim=-1)
+        voice_std = F.softplus(voice_scale_raw) + 1e-6
+        phoneme_std = F.softplus(phoneme_scale_raw) + 1e-6
+        voice_logvar = 2.0 * torch.log(voice_std)
+        phoneme_logvar = 2.0 * torch.log(phoneme_std)
+        voice_sampled = voice_mean + voice_std * torch.randn_like(voice_mean) * sampling_factor[:, None]
+        phoneme_sampled = phoneme_mean + phoneme_std * torch.randn_like(phoneme_mean) * sampling_factor[:, None, None]
+        if return_stats:
+            return voice_sampled, pitch, phoneme_sampled, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar
         return voice_sampled, pitch, phoneme_sampled
 
     @staticmethod
