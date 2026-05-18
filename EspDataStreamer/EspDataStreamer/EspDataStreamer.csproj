@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="libESPER-V2" Version="2.5.0" />
+      <PackageReference Include="libESPER-V2" Version="2.6.1" />
       <PackageReference Include="NAudio" Version="2.2.1" />
       <PackageReference Include="NetMQ" Version="4.0.2.2" />
     </ItemGroup>
