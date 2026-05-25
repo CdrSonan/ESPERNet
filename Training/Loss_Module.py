@@ -10,11 +10,13 @@ class BatchInvariantVAELoss(nn.Module):
     while preserving a non-degenerate distribution across batches.
 
     Expected inputs per forward call:
-        mu       : (N, D)   encoder means for the N augmentations
-        logvar   : (N, D)   encoder log-variances
-        recon    : (N, *X)  decoder outputs
-        target   : (*X,) or (N, *X)  shared reconstruction target
-                   (e.g. a clean sample, or one chosen augmentation)
+        mu    : (N, T, D)   encoder means for the N augmentations
+        logvar: (N, T, D)   encoder log-variances
+        recon : (N, T, C)  decoder outputs
+        target: (T, C) or (N, T, C)  shared reconstruction target
+                (e.g. a clean sample, or one chosen augmentation)
+
+    T (time dimension) is allowed to vary between batches.
     """
 
     def __init__(
@@ -44,42 +46,58 @@ class BatchInvariantVAELoss(nn.Module):
         # EMA buffers for tracking the distribution of batch-mean latents
         # across training steps (no meta-batch required).
         self.ema_momentum = ema_momentum
-        self.register_buffer("ema_mean",  torch.zeros(latent_dim))
-        self.register_buffer("ema_sqmean", torch.ones(latent_dim))
+        self.register_buffer("ema_mean",    torch.zeros(latent_dim))
+        self.register_buffer("ema_sqmean",  torch.ones(latent_dim))
         self.register_buffer("initialized", torch.tensor(False))
 
     # ---------- individual loss terms ----------
 
     def _reconstruction(self, recon, target):
-        # Broadcast target if it's a single sample shared across the batch
+        # Broadcast target if it is a single (T, C) sample shared across the batch
         if target.dim() == recon.dim() - 1:
             target = target.unsqueeze(0).expand_as(recon)
-        # Mean over batch and feature dims
+        # Mean over batch, time and feature dims
         return F.mse_loss(recon, target, reduction="mean")
 
     def _invariance(self, mu):
-        mean_mu = mu.mean(dim=0, keepdim=True)
+        """
+        Encourage consistency across batch items at each time step.
+        mu: (N, T, D)
+        """
+        # Mean across batch dimension, keeping time and channel
+        mean_mu = mu.mean(dim=0, keepdim=True)  # (1, T, D)
         if self.stop_grad_on_mean:
             mean_mu = mean_mu.detach()
-        return ((mu - mean_mu) ** 2).sum(dim=(1, 2)).mean()
+        # Penalize deviation from batch mean at each time step
+        # Sum over D, mean over N and T
+        return ((mu - mean_mu) ** 2).sum(dim=2).mean()
 
     def _kl_on_aggregate(self, mu, logvar):
         """
         KL( N(mean_mu, mean_var) || N(0, I) ),
         where mean_var is the average per-sample variance in the batch.
         This regularizes the aggregate posterior, not each q(z|x_i).
+
+        mu, logvar: (N, T, D)
+        Computes per-timestep aggregate and averages over time.
         """
-        mean_mu  = mu.mean(dim=0)                  # (D,)
-        mean_var = logvar.exp().mean(dim=0)        # (D,)
+        # Means across batch dimension: (T, D)
+        mean_mu = mu.mean(dim=0)
+        mean_var = logvar.exp().mean(dim=0)
+        # KL per timestep and dimension
         kl = 0.5 * (mean_var + mean_mu.pow(2) - 1.0 - mean_var.log())
-        return kl.sum()
+        # sum over D, mean over T
+        return kl.sum(dim=1).mean()
 
     @torch.no_grad()
     def _update_ema(self, batch_mean):
+        """
+        batch_mean: (D,) - the time-averaged, batch-averaged latent mean
+        """
         m = self.ema_momentum
         if not bool(self.initialized):
-            self.ema_mean.copy_(batch_mean)
-            self.ema_sqmean.copy_(batch_mean.pow(2) + 1.0)  # seed with var=1
+            self.ema_mean = batch_mean.clone()
+            self.ema_sqmean = batch_mean.clone().pow(2) + 1.0  # seed with var=1
             self.initialized.fill_(True)
         else:
             self.ema_mean.mul_(m).add_(batch_mean, alpha=1 - m)
@@ -90,14 +108,14 @@ class BatchInvariantVAELoss(nn.Module):
         VICReg-style hinge on the std of batch-mean latents *across batches*,
         estimated from EMA stats. The current batch_mean contributes a
         differentiable gradient; the EMA gives the running context.
+
+        batch_mean: (D,) - time-averaged, batch-averaged latent
         """
-        # Mix current (differentiable) value with EMA (detached context)
-        running_mean   = self.ema_mean
+        running_mean = self.ema_mean
         running_sqmean = self.ema_sqmean
         # Use detached EMA for the "other" batches, current value for "this" one.
-        # A simple practical estimator: blend them.
         blended_sqmean = 0.5 * batch_mean.pow(2) + 0.5 * running_sqmean
-        blended_mean   = 0.5 * batch_mean        + 0.5 * running_mean
+        blended_mean = 0.5 * batch_mean + 0.5 * running_mean
         var = (blended_sqmean - blended_mean.pow(2)).clamp_min(0.0)
         std = torch.sqrt(var + self.eps)
         return F.relu(self.var_gamma - std).mean()
@@ -105,34 +123,46 @@ class BatchInvariantVAELoss(nn.Module):
     def _covariance_term(self, mu):
         """
         Decorrelate latent dimensions across the batch.
-        With a small batch this is noisy, but combined with the EMA-based
-        variance term it still discourages collapse to a low-rank subspace.
+        mu: (N, T, D)
+
+        We flatten batch and time together for covariance computation,
+        treating each (batch_item, timestep) as a sample.
         """
-        N = mu.size(0)
-        if N < 2:
+        N, T, D = mu.shape
+        # Reshape to (N*T, D)
+        mu_flat = mu.reshape(N * T, D)
+        n_samples = N * T
+        if n_samples < 2:
             return mu.new_zeros(())
-        centered = mu - mu.mean(dim=0, keepdim=True)
-        cov = (centered.T @ centered) / (N - 1)         # (D, D)
+        centered = mu_flat - mu_flat.mean(dim=0, keepdim=True)
+        cov = (centered.T @ centered) / (n_samples - 1)  # (D, D)
         off_diag = cov - torch.diag(torch.diag(cov))
         return off_diag.pow(2).sum() / self.latent_dim
 
     # ---------- forward ----------
 
     def forward(self, mu, logvar, recon, target):
+        """
+        mu, logvar: (N, T, D)
+        recon: (N, T, C)
+        target: (T, C) or (N, T, C)
+        """
         rec = self._reconstruction(recon, target)
         inv = self._invariance(mu)
-        kl  = self._kl_on_aggregate(mu, logvar)
+        kl = self._kl_on_aggregate(mu, logvar)
 
-        batch_mean = mu.mean(dim=0).detach()  # used only to update EMA
-        var = self._variance_term(mu.mean(dim=0))   # differentiable through current batch
-        cov = self._covariance_term(mu)
-
+        # For EMA and variance term, use time-averaged then batch-averaged mean
+        # This gives a single (D,) vector representing the "average latent" of this batch
+        batch_mean = mu.mean(dim=(0, 1)).detach()
         self._update_ema(batch_mean)
+
+        var = self._variance_term(mu.mean(dim=(0, 1)))  # differentiable through current batch
+        cov = self._covariance_term(mu)
 
         total = (
                 self.lambda_rec * rec
                 + self.lambda_inv * inv
-                + self.lambda_kl  * kl
+                + self.lambda_kl * kl
                 + self.lambda_var * var
                 + self.lambda_cov * cov
         )
@@ -140,7 +170,7 @@ class BatchInvariantVAELoss(nn.Module):
         return total, {
             "rec": rec.detach(),
             "inv": inv.detach(),
-            "kl":  kl.detach(),
+            "kl": kl.detach(),
             "var": var.detach(),
             "cov": cov.detach(),
         }
