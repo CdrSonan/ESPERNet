@@ -36,28 +36,28 @@ class ESPERNetTrainingScaffold:
         decoded = self.decoder(voice, pitch, phoneme)
 
         vae_loss_total, stats = self.loss(phoneme_mean, phoneme_logvar, decoded, batch)
-        #score_generator = self.classifier(decoded)
-        #gan_loss_decoder = torch.abs(score_generator).mean()
+        score_generator = self.classifier(decoded)
+        gan_loss_decoder = torch.abs(score_generator).mean()
 
-        #(vae_loss_total + self.gan_weight * gan_loss_decoder).backward()
+        (vae_loss_total + self.gan_weight * gan_loss_decoder).backward()
         vae_loss_total.backward()
 
         self.encoder_optimizer.step()
         self.decoder_optimizer.step()
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
-        #self.classifier_optimizer.zero_grad()
+        self.classifier_optimizer.zero_grad()
 
-        """score_real = self.classifier(batch)
+        score_real = self.classifier(batch)
         score_fake = self.classifier(decoded.detach())
         gan_loss_classifier = torch.square(score_real).mean() + torch.square(score_fake - 1).mean()
         gan_loss_classifier.backward()
         self.classifier_optimizer.step()
 
-        self.classifier_optimizer.zero_grad()"""
+        self.classifier_optimizer.zero_grad()
 
-        stats["gan_d"] = gan_loss_decoder = 0.0
-        stats["gan_c"] = gan_loss_classifier = 0.0
+        stats["gan_d"] = gan_loss_decoder
+        stats["gan_c"] = gan_loss_classifier
 
         return stats
 

@@ -12,7 +12,8 @@ class ESPERNetEncoder(nn.Module):
                  max_ctx_size: int=4096,
                  model_dim: int=512,
                  voice_dim: int=64,
-                 phoneme_dim: int=3
+                 phoneme_dim: int=3,
+                 voice_mean_path_width: int=16
                  ):
         super().__init__()
         self.input_dim = input_dim
@@ -22,6 +23,7 @@ class ESPERNetEncoder(nn.Module):
         self.model_dim = model_dim
         self.voice_dim = voice_dim
         self.phoneme_dim = phoneme_dim
+        self.voice_mean_path_width = voice_mean_path_width
         self.cls_token = nn.Parameter(torch.randn(1, 1, model_dim))
         self.pre_projector = nn.Linear(input_dim + pitch_embed_dim + pos_embed_dim - 1, model_dim)
         self.main_encoder = nn.TransformerEncoder(nn.TransformerEncoderLayer(model_dim, 8, batch_first=True), num_layers=2)
@@ -49,6 +51,7 @@ class ESPERNetEncoder(nn.Module):
         features = self.main_encoder(features, mask=self.attn_mask(seq_len + 1, device=features.device), is_causal=False)
         #features = self.main_encoder(features)
         voice_features = features[:, -1, :]
+        voice_features[:, :self.voice_mean_path_width] = features[:, :, :self.voice_mean_path_width].mean(dim=1)
         phoneme_features = features[:, :-1, :]
         voice_features = self.post_projector_voice(voice_features)
         phoneme_features = self.post_projector_phoneme(phoneme_features)
@@ -92,7 +95,7 @@ if __name__ == "__main__":
         params += p.numel()
     print(f"Number of parameters: {params:,}")
     # test inference
-    model.eval().cuda()
-    data = torch.randn(1, 1024, 291).cuda()
-    u, v, w = model(data)
+    model.eval()
+    data = torch.randn(4, 1024, 98)
+    u, v, w = model(data, torch.ones(4, device=data.device))
     print(u.shape, v.shape, w.shape)
