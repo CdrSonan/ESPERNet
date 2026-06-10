@@ -14,7 +14,7 @@ public static class Augmentation
         //(Effects.Growl, 0, 0.5f),
         //(Effects.Mouth, -0.5f, 0.5f),
         (Effects.Roughness, -0.5f, 0.5f),
-        (Effects.Steadiness, -0.5f, 0.5f)
+        //(Effects.Steadiness, -0.5f, 0.5f)
     ];
 
     private static void ApplyRandomPitchShift(EsperAudio audio)
