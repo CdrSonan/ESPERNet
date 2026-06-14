@@ -72,19 +72,22 @@ class BatchInvariantVAELoss(nn.Module):
         # Sum over D, mean over N and T
         return ((mu - mean_mu) ** 2).sum(dim=2).mean()
 
-    def _kl_div(self, mu, logvar):
+    def _kl_on_aggregate(self, mu, logvar):
         """
-        Per-sample KL divergence: KL( N(mu_i, var_i) || N(0, I) )
-        for each sample in the batch.
+        KL( N(mean_mu, mean_var) || N(0, I) ),
+        where mean_var is the average per-sample variance in the batch.
+        This regularizes the aggregate posterior, not each q(z|x_i).
 
         mu, logvar: (N, T, D)
-        Computes per-sample KL and averages over batch and time.
+        Computes per-timestep aggregate and averages over time.
         """
-        # KL per sample, timestep and dimension
-        var = logvar.exp()
-        kl = 0.5 * (var + mu.pow(2) - 1.0 - logvar)
-        # sum over D, mean over N and T
-        return kl.sum(dim=2).mean()
+        # Means across batch dimension: (T, D)
+        mean_mu = mu.mean(dim=0)
+        mean_var = logvar.exp().mean(dim=0)
+        # KL per timestep and dimension
+        kl = 0.5 * (mean_var + mean_mu.pow(2) - 1.0 - mean_var.log())
+        # sum over D, mean over T
+        return kl.sum(dim=1).mean()
 
     @torch.no_grad()
     def _update_ema(self, batch_mean):
@@ -146,7 +149,7 @@ class BatchInvariantVAELoss(nn.Module):
         """
         rec = self._reconstruction(recon, target)
         inv = self._invariance(mu)
-        kl = self._kl_div(mu, logvar)
+        kl = self._kl_on_aggregate(mu, logvar)
 
         # For EMA and variance term, use time-averaged then batch-averaged mean
         # This gives a single (D,) vector representing the "average latent" of this batch
