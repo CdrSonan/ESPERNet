@@ -182,7 +182,6 @@ internal sealed class SampleBuffer : IDisposable
 
     private static EsperAudio CreateAugmentedAudio(EsperAudio sourceAudio)
     {
-        // TODO: replace placeholder with real augmentation pipeline.
         return Augmentation.Augment(sourceAudio, 2);
     }
 

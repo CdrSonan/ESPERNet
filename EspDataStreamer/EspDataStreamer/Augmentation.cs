@@ -8,13 +8,13 @@ public static class Augmentation
 {
     private static readonly (Action<EsperAudio, Vector<float>>, float, float)[] Fx = [
         (Effects.Breathiness, -0.5f, 0.8f),
-        //(Effects.Brightness, -0.5f, 0.5f),
+        (Effects.Brightness, -0.5f, 0.5f),
         (Effects.Dynamics, -0.5f, 0.5f),
         (Effects.FormantShift, -0.25f, 0.25f),
-        //(Effects.Growl, 0, 0.5f),
-        //(Effects.Mouth, -0.5f, 0.5f),
+        (Effects.Growl, 0, 0.5f),
+        (Effects.Mouth, -0.5f, 0.5f),
         (Effects.Roughness, -0.5f, 0.5f),
-        //(Effects.Steadiness, -0.5f, 0.5f)
+        (Effects.Steadiness, -0.5f, 0.5f)
     ];
 
     private static void ApplyRandomPitchShift(EsperAudio audio)
@@ -54,6 +54,7 @@ public static class Augmentation
             (fxIndices[i], fxIndices[randomIndex]) = (fxIndices[randomIndex], fxIndices[i]);
         }
 
+        audio.Validate();
         for (var i = 0; i < nAugs; i++)
         {
             ApplyFx(audio, Fx[fxIndices[i]]);
