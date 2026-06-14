@@ -27,20 +27,37 @@ class ESPERNetTrainingScaffold:
         self.gan_weight = gan_weight
 
     def train_step(self, batch: torch.Tensor):
-        voice, pitch, phoneme, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar = self.encoder(
-            batch,
-            torch.ones(batch.shape[0], device=batch.device),
-            return_stats=True,
-        )
+        # Handle both regular models and DDP-wrapped models
+        if hasattr(self.encoder, 'module'):
+            # DDP-wrapped model
+            voice, pitch, phoneme, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar = self.encoder.module(
+                batch,
+                torch.ones(batch.shape[0], device=batch.device),
+                return_stats=True,
+            )
+        else:
+            # Regular model
+            voice, pitch, phoneme, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar = self.encoder(
+                batch,
+                torch.ones(batch.shape[0], device=batch.device),
+                return_stats=True,
+            )
 
-        decoded = self.decoder(voice, pitch, phoneme)
+        if hasattr(self.decoder, 'module'):
+            decoded = self.decoder.module(voice, pitch, phoneme)
+        else:
+            decoded = self.decoder(voice, pitch, phoneme)
 
         vae_loss_total, stats = self.loss(phoneme_mean, phoneme_logvar, decoded, batch)
-        score_generator = self.classifier(decoded)
+        
+        if hasattr(self.classifier, 'module'):
+            score_generator = self.classifier.module(decoded)
+        else:
+            score_generator = self.classifier(decoded)
+            
         gan_loss_decoder = torch.abs(score_generator).mean()
 
         (vae_loss_total + self.gan_weight * gan_loss_decoder).backward()
-        vae_loss_total.backward()
 
         self.encoder_optimizer.step()
         self.decoder_optimizer.step()
@@ -48,8 +65,13 @@ class ESPERNetTrainingScaffold:
         self.decoder_optimizer.zero_grad()
         self.classifier_optimizer.zero_grad()
 
-        score_real = self.classifier(batch)
-        score_fake = self.classifier(decoded.detach())
+        if hasattr(self.classifier, 'module'):
+            score_real = self.classifier.module(batch)
+            score_fake = self.classifier.module(decoded.detach())
+        else:
+            score_real = self.classifier(batch)
+            score_fake = self.classifier(decoded.detach())
+            
         gan_loss_classifier = torch.square(score_real).mean() + torch.square(score_fake - 1).mean()
         gan_loss_classifier.backward()
         self.classifier_optimizer.step()
