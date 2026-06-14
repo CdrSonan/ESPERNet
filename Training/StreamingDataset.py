@@ -25,7 +25,7 @@ class EsperServerDataset(IterableDataset):
             step_size: int = 256,
             temp_comp: int = 1,
             spec_comp: int = 4,
-            n_augs: int = 3,
+            n_augs: int = 2,
             smoothing: float|str = 0.1,
             expected_pitch: float|str = "null",
             address: str = "tcp://localhost:5555",
@@ -103,6 +103,8 @@ class EsperServerDataset(IterableDataset):
         batch = torch.zeros((expected_batch_size, max_len, feature_dim), dtype=tensors[0].dtype)
         for i, tensor in enumerate(tensors):
             batch[i, :tensor.shape[0], :] = tensor
+        if torch.isnan(batch).any() or torch.isinf(batch).any() or torch.isneginf(batch).any():
+            raise RuntimeError("received batch contains invalid data.")
         return batch
 
     def _send_and_recv(self, msg: str, is_meta: bool) -> Union[str, torch.Tensor]:

@@ -25,7 +25,7 @@ class BatchInvariantVAELoss(nn.Module):
             lambda_rec: float = 1.0,
             lambda_inv: float = 1.0,
             lambda_kl:  float = 1e-3,
-            lambda_var: float = 1.0,
+            lambda_var: float = 0.01,
             lambda_cov: float = 0.04,
             var_gamma:  float = 1.0,          # target std for variance hinge
             ema_momentum: float = 0.99,
@@ -165,9 +165,9 @@ class BatchInvariantVAELoss(nn.Module):
         )
 
         return total, {
-            "rec": rec.detach(),
-            "inv": inv.detach(),
-            "kl": kl.detach(),
-            "var": var.detach(),
-            "cov": cov.detach(),
+            "rec": rec.detach().item(),
+            "inv": inv.detach().item(),
+            "kl": kl.detach().item(),
+            "var": var.detach().item(),
+            "cov": cov.detach().item(),
         }
