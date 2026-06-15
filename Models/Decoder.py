@@ -46,7 +46,10 @@ class ESPERNetDecoder(nn.Module):
         voice = voice.unsqueeze(1).repeat(1, seq_len, 1)
         features = torch.cat([phoneme, pitch_embedding, pos_embedding, voice], dim=2)
         features = self.pre_projector(features)
-        features = self.main_decoder(features)
+        
+        # Create causal mask for autoregressive decoding
+        causal_mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=features.device), diagonal=1)
+        features = self.main_decoder(features, mask=causal_mask)
         output = self.post_projector(features)
         output = torch.cat([pitch[..., None], output], dim=2)
         return output
@@ -60,9 +63,9 @@ if __name__ == "__main__":
         params += p.numel()
     print(f"Number of parameters: {params:,}")
     # test inference
-    model.eval().cuda()
-    vo = torch.randn(1, 64).cuda()
-    pi = torch.randn(1, 1024).cuda()
-    ph = torch.randn(1, 1024, 5).cuda()
+    model.eval()
+    vo = torch.randn(1, 64)
+    pi = torch.randn(1, 1024)
+    ph = torch.randn(1, 1024, 3)
     x = model(vo, pi, ph)
     print(x.shape)
