@@ -12,11 +12,11 @@ classifier = ESPERNetClassifier().eval()
 
 encoder.load_state_dict(torch.load("./ESPERNetEncoder-34000.pth", map_location="cpu"))
 decoder.load_state_dict(torch.load("./ESPERNetDecoder-34000.pth", map_location="cpu"))
-classifier.load_state_dict(torch.load("./ESPERNetClassifier-14000.pth", map_location="cpu"))
+classifier.load_state_dict(torch.load("./ESPERNetClassifier-34000.pth", map_location="cpu"))
 
 encoder_path = Path("./ESPERNetEncoder-34000.onnx")
 decoder_path = Path("./ESPERNetDecoder-34000.onnx")
-classifier_path = Path("./ESPERNetClassifier-14000.onnx")
+classifier_path = Path("./ESPERNetClassifier-34000.onnx")
 encoder_input = (torch.randn(1, 1024, 98), torch.tensor([1.0,]))
 decoder_input = (torch.randn(1, 64), torch.randn(1, 1024), torch.randn(1, 1024, 3))
 classifier_input = (torch.randn(1, 1024, 98),)
