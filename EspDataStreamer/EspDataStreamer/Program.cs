@@ -201,7 +201,11 @@ internal sealed class SampleBuffer : IDisposable
         var resampled = Vector<double>.Build.Dense((int)(sampleCount * resampFactor), i => interpolator.Interpolate(i / 48000d));
 
         var sampleConfig = new EsperAudioConfig((ushort)config.NVoiced, (ushort)config.NUnvoiced, config.StepSize);
-        var forwardConfig = new EsperForwardConfig(config.Smoothing, config.ExpectedPitch == null ? null : Vector<float>.Build.Dense(1, config.ExpectedPitch.Value));
+        var forwardConfig = new EsperForwardConfig
+        {
+            PitchOscillatorDamping = config.Smoothing,
+            ExpectedPitch = config.ExpectedPitch == null ? null : Vector<float>.Build.Dense(1, config.ExpectedPitch.Value)
+        };
 
         var esperAudio = EsperTransforms.Forward(
             Vector<float>.Build.Dense(resampled.Count, i => (float)resampled[i]),
