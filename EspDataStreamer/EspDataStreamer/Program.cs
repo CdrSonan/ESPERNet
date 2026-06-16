@@ -1,13 +1,11 @@
 using System.Threading.Channels;
 using libESPER_V2.Core;
-using libESPER_V2.Effects;
 using libESPER_V2.Transforms;
 using MathNet.Numerics.Interpolation;
 using MathNet.Numerics.LinearAlgebra;
 using NAudio.Wave;
 using NetMQ;
 using NetMQ.Sockets;
-using System.Reflection;
 using EspDataStreamer;
 
 var basePath = Environment.GetCommandLineArgs()[1];
@@ -109,25 +107,6 @@ void ServerLoop(string address = "tcp://localhost:5555")
 /// </summary>
 internal sealed class SampleBuffer : IDisposable
 {
-    private static readonly MethodInfo[] EffectMethods = typeof(Effects)
-        .GetMethods(BindingFlags.Public | BindingFlags.Static)
-        .Where(method =>
-        {
-            if (method.ReturnType != typeof(void))
-            {
-                return false;
-            }
-
-            var parameters = method.GetParameters();
-            if (parameters.Length < 2 || parameters[0].ParameterType != typeof(EsperAudio))
-            {
-                return false;
-            }
-
-            return parameters.Skip(1).All(parameter => parameter.ParameterType == typeof(Vector<float>));
-        })
-        .ToArray();
-
     private readonly string[] _files;
     private readonly Config _config;
 
