@@ -76,17 +76,32 @@ class ESPERNetEncoder(nn.Module):
         phoneme_features = features[:, :-1, :]
 
         # project to twice the output size
-        voice = self.post_projector_voice(voice_features)
+        voice_features = self.post_projector_voice(voice_features)
         phoneme = self.post_projector_phoneme(phoneme_features)
+
+        voice_mean, voice_scale_raw = voice_features.chunk(2, dim=-1)
+        voice_std = F.softplus(voice_scale_raw) + 1e-6
+        voice_logvar = 2.0 * torch.log(voice_std)
+        voice_sampled = voice_mean + voice_std * torch.randn_like(voice_mean) * sampling_factor[:, None]
+
 
         # perform vector quantization
         phoneme_flat = phoneme.reshape(-1, self.phoneme_dim)
         distances = (phoneme_flat.unsqueeze(1) - self.codebook.weight.unsqueeze(0)).pow(2).sum(dim=2)
-        indices = distances.argmin(dim=1)
-        phoneme_quantized = self.codebook(indices).reshape(phoneme.shape)
-        vq_loss = F.mse_loss(phoneme_quantized.detach(), phoneme)
+        
+        # Straight-through estimator: copy gradients from quantized to unquantized
+        with torch.no_grad():
+            indices = distances.argmin(dim=1)
+            phoneme_quantized = self.codebook(indices).reshape(phoneme.shape)
+        
+        # Copy gradients from quantized vectors to encoder outputs
+        phoneme.copy_(phoneme_quantized + (phoneme - phoneme_quantized).detach())
+        
+        vq_loss = F.mse_loss(phoneme_quantized.detach(), phoneme.detach())
 
-        return voice, pitch, phoneme_quantized, vq_loss
+        if return_stats:
+            return voice_sampled, pitch, phoneme_quantized, vq_loss, voice_mean, voice_logvar
+        return voice_sampled, pitch, phoneme_quantized
 
     @staticmethod
     def attn_mask(seq_len: int, win_size: int = 7, device: torch.device = torch.device("cpu")):
@@ -118,5 +133,5 @@ if __name__ == "__main__":
     # test inference
     model.eval()
     data = torch.randn(4, 1024, 98)
-    u, v, w, vq_loss = model(data, torch.ones(4, device=data.device))
+    u, v, w, vq_loss, _, _ = model(data, torch.ones(4, device=data.device), return_stats=True)
     print(u.shape, v.shape, w.shape, vq_loss)
