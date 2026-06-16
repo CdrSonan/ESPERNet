@@ -100,7 +100,7 @@ class ESPERNetEncoder(nn.Module):
         vq_loss = F.mse_loss(phoneme_quantized.detach(), phoneme.detach())
 
         if return_stats:
-            return voice_sampled, pitch, phoneme_quantized, vq_loss, voice_mean, voice_logvar
+            return voice_sampled, pitch, phoneme_quantized, vq_loss, voice_mean, voice_logvar, phoneme
         return voice_sampled, pitch, phoneme_quantized
 
     @staticmethod

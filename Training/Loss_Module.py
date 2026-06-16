@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class BatchInvariantVAELoss(nn.Module):
+class VAELoss(nn.Module):
     """
     Loss for a VAE where each batch contains N augmentations of a SINGLE
     underlying sample. Encourages within-batch invariance of the latent
@@ -138,23 +138,23 @@ class BatchInvariantVAELoss(nn.Module):
 
     # ---------- forward ----------
 
-    def forward(self, mu, logvar, recon, target):
+    def forward(self, voice_mean, voice_logvar, decoded, batch, phoneme):
         """
         mu, logvar: (N, T, D)
         recon: (N, T, C)
         target: (T, C) or (N, T, C)
         """
-        rec = self._reconstruction(recon, target)
-        inv = self._invariance(mu)
-        kl = self._kl_div(mu, logvar)
+        rec = self._reconstruction(decoded, batch)
+        inv = self._invariance(phoneme)
+        kl = self._kl_div(voice_mean, voice_logvar)
 
         # For EMA and variance term, use time-averaged then batch-averaged mean
         # This gives a single (D,) vector representing the "average latent" of this batch
-        batch_mean = mu.mean(dim=(0, 1)).detach()
+        batch_mean = voice_mean.mean(dim=(0, 1)).detach()
         self._update_ema(batch_mean)
 
-        var = self._variance_term(mu.mean(dim=(0, 1)))  # differentiable through current batch
-        cov = self._covariance_term(mu)
+        var = self._variance_term(voice_mean.mean(dim=(0, 1)))  # differentiable through current batch
+        cov = self._covariance_term(voice_mean)
 
         total = (
                 self.lambda_rec * rec

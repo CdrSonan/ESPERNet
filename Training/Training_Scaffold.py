@@ -3,7 +3,7 @@ import torch
 from Models.Classifier import ESPERNetClassifier
 from Models.Decoder import ESPERNetDecoder
 from Models.Encoder import ESPERNetEncoder
-from Training.Loss_Module import BatchInvariantVAELoss
+from Training.Loss_Module import VAELoss
 
 
 class ESPERNetTrainingScaffold:
@@ -14,7 +14,7 @@ class ESPERNetTrainingScaffold:
                  encoder_optimizer: torch.optim.Optimizer,
                  decoder_optimizer: torch.optim.Optimizer,
                  classifier_optimizer: torch.optim.Optimizer,
-                 loss: BatchInvariantVAELoss,
+                 loss: VAELoss,
                  gan_weight: float = 0.5):
 
         self.encoder = encoder
@@ -27,20 +27,19 @@ class ESPERNetTrainingScaffold:
         self.gan_weight = gan_weight
 
     def train_step(self, batch: torch.Tensor):
-        voice, pitch, phoneme, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar = self.encoder(
+        voice_sampled, pitch, phoneme_quantized, vq_loss, voice_mean, voice_logvar, phoneme = self.encoder(
             batch,
             torch.ones(batch.shape[0], device=batch.device),
             return_stats=True,
         )
 
-        decoded = self.decoder(voice, pitch, phoneme)
+        decoded = self.decoder(voice_sampled, pitch, phoneme_quantized)
 
-        vae_loss_total, stats = self.loss(phoneme_mean, phoneme_logvar, decoded, batch)
+        vae_loss_voice, stats = self.loss(voice_mean, voice_logvar, decoded, batch, phoneme)
         score_generator = self.classifier(decoded)
         gan_loss_decoder = torch.square(score_generator).mean()
 
-        (vae_loss_total + self.gan_weight * gan_loss_decoder).backward()
-        vae_loss_total.backward()
+        (vae_loss_voice + vq_loss + self.gan_weight * gan_loss_decoder).backward()
 
         self.encoder_optimizer.step()
         self.decoder_optimizer.step()
