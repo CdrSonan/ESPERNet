@@ -166,30 +166,47 @@ internal sealed class SampleBuffer : IDisposable
 
     private static byte[] GetSampleFromFile(string filename, Config config)
     {
-        Console.WriteLine($"Reading {filename}");
-        using var reader = new Mp3FileReader(filename);
-        var audio = reader.ToSampleProvider();
-        var sampleRate = reader.WaveFormat.SampleRate;
-        var sampleCount = (int)(reader.Length / (reader.WaveFormat.BitsPerSample / 8));
-        var waveform = new float[sampleCount];
-        audio.Read(waveform, 0, sampleCount);
-        var x = Vector<double>.Build.Dense(sampleCount, i => (double)i / sampleRate).ToArray();
-        var y = Vector<double>.Build.Dense(sampleCount, i => waveform[i]).ToArray();
-        var interpolator = CubicSpline.InterpolatePchip(x, y);
-        var resampFactor = 48000d / sampleRate;
-        var resampled = Vector<double>.Build.Dense((int)(sampleCount * resampFactor), i => interpolator.Interpolate(i / 48000d));
-
-        var sampleConfig = new EsperAudioConfig((ushort)config.NVoiced, (ushort)config.NUnvoiced, config.StepSize);
-        var forwardConfig = new EsperForwardConfig
+        // Check for cached .esp file
+        var cacheFilename = Path.ChangeExtension(filename, ".esp");
+        EsperAudio esperAudio;
+        
+        if (File.Exists(cacheFilename))
         {
-            PitchOscillatorDamping = config.Smoothing,
-            ExpectedPitch = config.ExpectedPitch == null ? null : Vector<float>.Build.Dense(1, config.ExpectedPitch.Value)
-        };
+            Console.WriteLine($"Loading cached {cacheFilename}");
+            esperAudio = Serialization.Deserialize(File.ReadAllBytes(cacheFilename));
+        }
+        else
+        {
+            Console.WriteLine($"Reading {filename}");
+            using var reader = new Mp3FileReader(filename);
+            var audio = reader.ToSampleProvider();
+            var sampleRate = reader.WaveFormat.SampleRate;
+            var sampleCount = (int)(reader.Length / (reader.WaveFormat.BitsPerSample / 8));
+            var waveform = new float[sampleCount];
+            audio.Read(waveform, 0, sampleCount);
+            var x = Vector<double>.Build.Dense(sampleCount, i => (double)i / sampleRate).ToArray();
+            var y = Vector<double>.Build.Dense(sampleCount, i => waveform[i]).ToArray();
+            var interpolator = CubicSpline.InterpolatePchip(x, y);
+            var resampFactor = 48000d / sampleRate;
+            var resampled = Vector<double>.Build.Dense((int)(sampleCount * resampFactor), i => interpolator.Interpolate(i / 48000d));
 
-        var esperAudio = EsperTransforms.Forward(
-            Vector<float>.Build.Dense(resampled.Count, i => (float)resampled[i]),
-            sampleConfig,
-            forwardConfig);
+            var sampleConfig = new EsperAudioConfig((ushort)config.NVoiced, (ushort)config.NUnvoiced, config.StepSize);
+            var forwardConfig = new EsperForwardConfig
+            {
+                PitchOscillatorDamping = config.Smoothing,
+                ExpectedPitch = config.ExpectedPitch == null ? null : Vector<float>.Build.Dense(1, config.ExpectedPitch.Value)
+            };
+
+            esperAudio = EsperTransforms.Forward(
+                Vector<float>.Build.Dense(resampled.Count, i => (float)resampled[i]),
+                sampleConfig,
+                forwardConfig);
+            
+            // Cache the processed EsperAudio
+            var serializedCache = Serialization.Serialize(esperAudio);
+            File.WriteAllBytes(cacheFilename, serializedCache);
+            Console.WriteLine($"Cached to {cacheFilename}");
+        }
         var compressedSamples = new CompressedEsperAudio[config.NAugs + 1];
         compressedSamples[0] = Compression.Compress(esperAudio, config.TempComp, config.SpecComp, 1e-5f);
         for (var i = 1; i < compressedSamples.Length; i++)
@@ -215,7 +232,7 @@ internal sealed class SampleBuffer : IDisposable
         }
 
         Console.WriteLine(
-            $"Read {filename} ({compressedSamples[0].Length} frames, {compressedSamples.Length} variants)");
+            $"Processed {filename} ({compressedSamples[0].Length} frames, {compressedSamples.Length} variants)");
         return payload;
     }
 
