@@ -48,8 +48,9 @@ class ESPERNetDecoder(nn.Module):
         features = self.pre_projector(features)
         
         # Create causal mask for autoregressive decoding
-        causal_mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=features.device), diagonal=1)
-        features = self.main_decoder(features, mask=causal_mask)
+        #causal_mask = torch.triu(torch.ones(seq_len, seq_len, dtype=torch.bool, device=features.device), diagonal=1)
+        #features = self.main_decoder(features, mask=causal_mask)
+        features = self.main_decoder(features)
         output = self.post_projector(features)
         output = torch.cat([pitch[..., None], output], dim=2)
         return output
