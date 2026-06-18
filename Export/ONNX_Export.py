@@ -17,7 +17,7 @@ classifier.load_state_dict(torch.load("./ESPERNetClassifier-34000.pth", map_loca
 encoder_path = Path("./ESPERNetEncoder-34000.onnx")
 decoder_path = Path("./ESPERNetDecoder-34000.onnx")
 classifier_path = Path("./ESPERNetClassifier-34000.onnx")
-encoder_input = (torch.randn(1, 1024, 98), torch.tensor([1.0,]))
+encoder_input = (torch.randn(1, 1024, 98), torch.tensor([1.0,]), torch.tensor([1.0,]))
 decoder_input = (torch.randn(1, 64), torch.randn(1, 1024), torch.randn(1, 1024, 3))
 classifier_input = (torch.randn(1, 1024, 98),)
 
@@ -28,9 +28,9 @@ torch.onnx.export(
     encoder,
     encoder_input,
     encoder_path,
-    input_names=["ESPERAudio", "sampling_factor"],
+    input_names=["ESPERAudio", "sampling_factor", "vq_balance"],
     output_names=["voice", "pitch", "phoneme"],
-    dynamic_shapes={"x": {0: batch_size, 1:seq_len}, "sampling_factor": {0: batch_size}},
+    dynamic_shapes={"x": {0: batch_size, 1:seq_len}, "sampling_factor": {0: batch_size}, "vq_balance": {0: batch_size}},
     export_params=True,
     do_constant_folding=False,
     external_data=False,
