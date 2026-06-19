@@ -27,7 +27,7 @@ class ESPERNetClassifier(nn.Module):
 
     def make_filter(self, in_channels:int, out_channels:int):
         return nn.Sequential(
-            spectral_norm(nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)),
+            spectral_norm(nn.Conv2d(in_channels, out_channels, kernel_size=5, padding=2)),
             nn.GELU(),
         )
 

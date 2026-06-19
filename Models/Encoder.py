@@ -14,7 +14,7 @@ class ESPERNetEncoder(nn.Module):
                  voice_dim: int=64,
                  phoneme_dim: int=3,
                  voice_mean_path_width: int=16,
-                 codebook_size: int = 512
+                 codebook_size: int = 128
                  ):
         super().__init__()
         self.input_dim = input_dim
@@ -83,8 +83,12 @@ class ESPERNetEncoder(nn.Module):
         phoneme_flat = phoneme_mean.reshape(-1, self.phoneme_dim)
         distances = (phoneme_flat.unsqueeze(1) - self.codebook.weight.unsqueeze(0)).pow(2).sum(dim=2)
         indices = distances.argmin(dim=1)
-        phoneme_quantized = self.codebook(indices).reshape(phoneme_mean.shape)
-        vq_loss = F.mse_loss(phoneme_quantized.detach(), phoneme_mean)
+        phoneme_codeword = self.codebook(indices).reshape(phoneme_mean.shape)
+        vq_loss = F.mse_loss(phoneme_codeword.detach(), phoneme_mean)
+
+        # Straight-through estimator: forward pass uses quantized values,
+        # backward pass copies gradients directly to phoneme_mean
+        phoneme_quantized = phoneme_mean + (phoneme_codeword - phoneme_mean).detach()
 
         voice_std = F.softplus(voice_scale_raw) + 1e-6
         phoneme_std = F.softplus(phoneme_scale_raw) + 1e-6

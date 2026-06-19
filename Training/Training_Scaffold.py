@@ -15,8 +15,7 @@ class ESPERNetTrainingScaffold:
                  decoder_optimizer: torch.optim.Optimizer,
                  classifier_optimizer: torch.optim.Optimizer,
                  loss: BatchInvariantVAELoss,
-                 gan_weight: float = 0.5,
-                 vq_weight: float = 0.5):
+                 gan_weight: float = 0.5):
 
         self.encoder = encoder
         self.decoder = decoder
@@ -26,9 +25,8 @@ class ESPERNetTrainingScaffold:
         self.classifier_optimizer = classifier_optimizer
         self.loss = loss
         self.gan_weight = gan_weight
-        self.vq_weight = vq_weight
 
-    def train_step(self, batch: torch.Tensor, vq_balance: float = 0.0):
+    def train_step(self, batch: torch.Tensor, vq_balance: float = 0.0, vq_weight: float = 1.0):
         voice, pitch, phoneme, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar, vq_loss = self.encoder(
             batch,
             torch.ones(batch.shape[0], device=batch.device),
@@ -42,7 +40,7 @@ class ESPERNetTrainingScaffold:
         score_generator = self.classifier(decoded)
         gan_loss_decoder = torch.square(score_generator).mean()
 
-        (vae_loss_total + self.vq_weight * vq_loss + self.gan_weight * gan_loss_decoder).backward()
+        (vae_loss_total + vq_weight * vq_loss + self.gan_weight * gan_loss_decoder).backward()
 
         self.encoder_optimizer.step()
         self.decoder_optimizer.step()
@@ -58,6 +56,7 @@ class ESPERNetTrainingScaffold:
 
         self.classifier_optimizer.zero_grad()
 
+        stats["vq"] = vq_loss.detach().item()
         stats["gan_d"] = gan_loss_decoder.detach().item()
         stats["gan_c"] = gan_loss_classifier.detach().item()
 
