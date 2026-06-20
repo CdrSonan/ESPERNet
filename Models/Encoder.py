@@ -14,7 +14,7 @@ class ESPERNetEncoder(nn.Module):
                  voice_dim: int=64,
                  phoneme_dim: int=3,
                  voice_mean_path_width: int=16,
-                 codebook_size: int = 128
+                 codebook_size: int = 32
                  ):
         super().__init__()
         self.input_dim = input_dim
