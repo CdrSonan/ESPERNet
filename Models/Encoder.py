@@ -84,7 +84,7 @@ class ESPERNetEncoder(nn.Module):
         distances = (phoneme_flat.unsqueeze(1) - self.codebook.weight.unsqueeze(0)).pow(2).sum(dim=2)
         indices = distances.argmin(dim=1)
         phoneme_quantized = self.codebook(indices).reshape(phoneme_mean.shape)
-        vq_loss = F.mse_loss(phoneme_codeword, phoneme_mean)
+        vq_loss = F.mse_loss(phoneme_quantized, phoneme_mean)
 
         voice_std = F.softplus(voice_scale_raw) + 1e-6
         phoneme_std = F.softplus(phoneme_scale_raw) + 1e-6
