@@ -27,7 +27,7 @@ class ESPERNetTrainingScaffold:
         self.gan_weight = gan_weight
 
     def train_step(self, batch: torch.Tensor, vq_balance: float = 0.0, vq_weight: float = 1.0):
-        voice, pitch, phoneme, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar, vq_loss = self.encoder(
+        voice, pitch, phoneme, voice_mean, voice_logvar, phoneme_logvar, vq_loss = self.encoder(
             batch,
             torch.ones(batch.shape[0], device=batch.device),
             torch.full((batch.shape[0],), vq_balance, device=batch.device),
@@ -36,7 +36,7 @@ class ESPERNetTrainingScaffold:
 
         decoded = self.decoder(voice, pitch, phoneme)
 
-        vae_loss_total, stats = self.loss(phoneme_mean, phoneme_logvar, decoded, batch)
+        vae_loss_total, stats = self.loss(phoneme, phoneme_logvar, decoded, batch)
         score_generator = self.classifier(decoded)
         gan_loss_decoder = torch.square(score_generator).mean()
 

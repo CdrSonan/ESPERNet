@@ -83,12 +83,8 @@ class ESPERNetEncoder(nn.Module):
         phoneme_flat = phoneme_mean.reshape(-1, self.phoneme_dim)
         distances = (phoneme_flat.unsqueeze(1) - self.codebook.weight.unsqueeze(0)).pow(2).sum(dim=2)
         indices = distances.argmin(dim=1)
-        phoneme_codeword = self.codebook(indices).reshape(phoneme_mean.shape)
-        vq_loss = F.mse_loss(phoneme_codeword.detach(), phoneme_mean)
-
-        # Straight-through estimator: forward pass uses quantized values,
-        # backward pass copies gradients directly to phoneme_mean
-        phoneme_quantized = phoneme_mean + (phoneme_codeword - phoneme_mean).detach()
+        phoneme_quantized = self.codebook(indices).reshape(phoneme_mean.shape)
+        vq_loss = F.mse_loss(phoneme_codeword, phoneme_mean)
 
         voice_std = F.softplus(voice_scale_raw) + 1e-6
         phoneme_std = F.softplus(phoneme_scale_raw) + 1e-6
@@ -100,7 +96,7 @@ class ESPERNetEncoder(nn.Module):
         phoneme = phoneme_sampled * (torch.ones_like(vq_balance[:, None, None]) - vq_balance[:, None, None]) + phoneme_quantized * vq_balance[:, None, None]
 
         if return_stats:
-            return voice_sampled, pitch, phoneme, voice_mean, voice_logvar, phoneme_mean, phoneme_logvar, vq_loss
+            return voice_sampled, pitch, phoneme, voice_mean, voice_logvar, phoneme_logvar, vq_loss
         return voice_sampled, pitch, phoneme
 
     @staticmethod

@@ -76,6 +76,8 @@ kmeans = KMeans(n_clusters=scaffold.encoder.codebook_size, random_state=0)
 kmeans.fit(phoneme_samples.numpy())
 print(kmeans.cluster_centers_)
 scaffold.encoder.codebook.weight.data = torch.from_numpy(kmeans.cluster_centers_).to(device)
+scaffold.loss.lambda_kl = 0.0
+scaffold.loss.lambda_var = 0.0
 
 for i, sample in enumerate(tqdm(dataset, total=length_convert)):
     schedule = math.sin((math.pi / 2) * (i / length_convert))
